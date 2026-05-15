@@ -1500,88 +1500,244 @@ async function scanWebsite() {
 }
 
 function analyzeAndRender(html, url) {
+  // 標準化 HTML — 確保 <head> 存在，避免 proxy 回傳不完整結構
+  let fullHtml = html;
+  if (!/<html/i.test(html)) fullHtml = `<html><head></head><body>${html}</body></html>`;
+  if (!/<head/i.test(fullHtml)) fullHtml = fullHtml.replace(/<html[^>]*>/i, m => m + '<head></head>');
+
   const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
+  const doc = parser.parseFromString(fullHtml, 'text/html');
+  const rawLower = html.toLowerCase();
 
-  // Extract signals
-  const title = doc.querySelector('title')?.textContent?.trim() || '';
-  const desc = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
-  const h1s = doc.querySelectorAll('h1');
-  const h2s = doc.querySelectorAll('h2');
-  const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || '';
-  const canonical = doc.querySelector('link[rel="canonical"]')?.getAttribute('href') || '';
-  const lang = doc.documentElement.getAttribute('lang') || '';
-  const jsonLds = doc.querySelectorAll('script[type="application/ld+json"]');
-  const viewport = doc.querySelector('meta[name="viewport"]')?.getAttribute('content') || '';
-  const robots = doc.querySelector('meta[name="robots"]')?.getAttribute('content') || '';
-  const images = doc.querySelectorAll('img');
-  let imagesWithAlt = 0;
-  images.forEach(img => { if (img.getAttribute('alt')) imagesWithAlt++; });
+  // ── 擷取所有信號 ──────────────────────────────────────
+  const title        = doc.querySelector('title')?.textContent?.trim() || '';
+  const desc         = doc.querySelector('meta[name="description"]')?.getAttribute('content')?.trim() || '';
+  const h1s          = doc.querySelectorAll('h1');
+  const h2s          = doc.querySelectorAll('h2');
+  const h3s          = doc.querySelectorAll('h3');
+  const ogTitle      = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || '';
+  const ogDesc       = doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || '';
+  const ogImage      = doc.querySelector('meta[property="og:image"]')?.getAttribute('content') || '';
+  const twitterCard  = doc.querySelector('meta[name="twitter:card"]')?.getAttribute('content') || '';
+  const canonical    = doc.querySelector('link[rel="canonical"]')?.getAttribute('href') || '';
+  const lang         = doc.documentElement.getAttribute('lang') || '';
+  const viewport     = doc.querySelector('meta[name="viewport"]')?.getAttribute('content') || '';
+  const robots       = doc.querySelector('meta[name="robots"]')?.getAttribute('content') || '';
+  const jsonLds      = doc.querySelectorAll('script[type="application/ld+json"]');
+  const images       = doc.querySelectorAll('img');
+  const links        = doc.querySelectorAll('a[href]');
+  const hasFaq       = rawLower.includes('"faqpage"') || rawLower.includes('"question"') ||
+                       !!doc.querySelector('[itemtype*="FAQPage"]');
+  const hasOrg       = rawLower.includes('"organization"') || rawLower.includes('"corporation"');
+  const hasLlms      = rawLower.includes('llms.txt');
+  const hasAuthor    = !!doc.querySelector('address,[itemprop="author"],[rel="author"]') ||
+                       rawLower.includes('"author"');
+  const isHttps      = url.startsWith('https://') || url === '（貼上原始碼）';
+  const imagesWithAlt = [...images].filter(i => (i.getAttribute('alt') || '').trim().length > 0).length;
+  const altRatio      = images.length > 0 ? imagesWithAlt / images.length : 1;
+  const internalLinks = [...links].filter(a => {
+    const h = a.getAttribute('href') || '';
+    return h.startsWith('/') || h.startsWith('#') || (url !== '（貼上原始碼）' && h.includes(new URL(url).hostname));
+  }).length;
 
-  // SEO scoring
-  let seoScore = 0;
-  let geoScore = 0;
-  const issues = [];
+  // ── 評分（固定規則，相同 HTML 永遠相同分數）────────────
+  const SEO = [
+    { pts: 15, pass: title.length > 5 },
+    { pts: 12, pass: desc.length > 50 },
+    { pts: 10, pass: h1s.length > 0 },
+    { pts:  8, pass: !!ogTitle },
+    { pts:  5, pass: !!ogImage },
+    { pts:  6, pass: !!canonical },
+    { pts:  5, pass: !!lang },
+    { pts:  5, pass: !!viewport },
+    { pts:  4, pass: !!robots },
+    { pts:  6, pass: h2s.length > 0 },
+    { pts:  5, pass: altRatio >= 0.8 },
+    { pts:  5, pass: isHttps },
+    { pts:  4, pass: internalLinks >= 3 },
+    { pts:  3, pass: !!twitterCard },
+  ];
+  const GEO = [
+    { pts: 20, pass: jsonLds.length > 0 },
+    { pts: 15, pass: hasFaq },
+    { pts: 12, pass: hasOrg },
+    { pts: 10, pass: hasLlms },
+    { pts:  8, pass: hasAuthor },
+    { pts:  8, pass: h1s.length > 0 && desc.length > 80 },
+    { pts:  7, pass: images.length > 0 && altRatio >= 0.8 },
+    { pts:  5, pass: internalLinks >= 3 },
+    { pts:  5, pass: !!lang },
+    { pts:  5, pass: !!canonical },
+    { pts:  5, pass: title.length > 10 },
+  ];
 
-  if (title && title.length > 5) { seoScore += 15; issues.push({label:'Title Tag', status:'good', note:title.substring(0,60)}); }
-  else { issues.push({label:'Title Tag', status:'bad', note:'缺少'}); }
+  const seoScore = Math.min(100, SEO.filter(r=>r.pass).reduce((s,r)=>s+r.pts, 0));
+  const geoScore = Math.min(100, GEO.filter(r=>r.pass).reduce((s,r)=>s+r.pts, 0));
 
-  if (desc && desc.length > 50) { seoScore += 12; }
-  if (h1s.length > 0) { seoScore += 10; }
-  if (ogTitle) { seoScore += 8; }
-  if (canonical) { seoScore += 6; }
-  if (lang) { seoScore += 5; }
-  if (viewport) { seoScore += 5; }
-  if (robots) { seoScore += 4; }
-  if (h2s.length > 0) { seoScore += 6; }
-  if (images.length > 0 && imagesWithAlt / images.length > 0.5) { seoScore += 5; }
-  seoScore += 10; // HTTPS assumed
-  seoScore += 8; // internal links assumed
+  // ── 建立問題清單資料 ──────────────────────────────────
+  const checks = [
+    // SEO
+    { label: 'Title 標籤', pass: title.length > 5, priority:'high', cat:'SEO',
+      detail: title.length > 5 ? `"${title.substring(0,60)}"` : '缺少 &lt;title&gt; 標籤',
+      fix: '加入 &lt;title&gt;品牌名 | 頁面描述&lt;/title&gt;（建議 30–60 字元）' },
+    { label: 'Meta Description', pass: desc.length > 50, priority:'high', cat:'SEO',
+      detail: desc.length > 50 ? `"${desc.substring(0,80)}..."` : desc.length > 0 ? `太短（${desc.length} 字）` : '缺少',
+      fix: '加入 120–160 字元的描述，包含核心關鍵字與行動呼籲' },
+    { label: 'H1 標題', pass: h1s.length > 0, priority:'high', cat:'SEO',
+      detail: h1s.length > 0 ? `找到 ${h1s.length} 個 H1：「${h1s[0]?.textContent?.trim().substring(0,40)}」` : '缺少 &lt;h1&gt;',
+      fix: '每頁只能有一個 &lt;h1&gt;，清楚描述頁面主題' },
+    { label: 'Open Graph 標籤', pass: !!ogTitle, priority:'high', cat:'SEO',
+      detail: ogTitle ? `og:title = "${ogTitle.substring(0,50)}"` : '缺少 og:title / og:description / og:image',
+      fix: '加入 og:title、og:description、og:image（1200×630px）、og:url' },
+    { label: 'OG Image', pass: !!ogImage, priority:'medium', cat:'SEO',
+      detail: ogImage ? ogImage.substring(0,60) : '缺少 og:image',
+      fix: '準備 1200×630px 分享圖，加入 &lt;meta property="og:image" content="..."&gt;' },
+    { label: 'Canonical URL', pass: !!canonical, priority:'high', cat:'SEO',
+      detail: canonical || '未設定',
+      fix: '加入 &lt;link rel="canonical" href="完整網址"&gt;' },
+    { label: 'lang 語言屬性', pass: !!lang, priority:'high', cat:'SEO',
+      detail: lang ? `lang="${lang}"` : '&lt;html&gt; 缺少 lang 屬性',
+      fix: '將開頭改為 &lt;html lang="zh-TW"&gt;' },
+    { label: 'Viewport Meta', pass: !!viewport, priority:'medium', cat:'SEO',
+      detail: viewport || '缺少',
+      fix: '加入 &lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;' },
+    { label: 'Robots Meta', pass: !!robots, priority:'low', cat:'SEO',
+      detail: robots || '未設定（預設允許索引）',
+      fix: '加入 &lt;meta name="robots" content="index, follow"&gt;' },
+    { label: 'H2/H3 結構', pass: h2s.length > 0, priority:'medium', cat:'SEO',
+      detail: h2s.length > 0 ? `H2: ${h2s.length} 個，H3: ${h3s.length} 個` : '缺少小標題結構',
+      fix: '使用 H2/H3 組織頁面內容，標題包含目標關鍵字' },
+    { label: '圖片 Alt 文字', pass: altRatio >= 0.8, priority:'medium', cat:'SEO',
+      detail: images.length > 0 ? `${imagesWithAlt}/${images.length} 張有 alt（${Math.round(altRatio*100)}%）` : '無圖片',
+      fix: '每張圖片加入描述性 alt，包含相關關鍵字' },
+    { label: 'HTTPS', pass: isHttps, priority:'high', cat:'SEO',
+      detail: isHttps ? '已啟用 HTTPS' : '未使用 HTTPS',
+      fix: '申請 SSL 憑證並將所有 http:// 導向 https://' },
+    { label: '內部連結', pass: internalLinks >= 3, priority:'medium', cat:'SEO',
+      detail: `偵測到 ${internalLinks} 個內部連結`,
+      fix: '確保頁面有足夠內部連結，協助搜尋引擎爬取網站' },
+    { label: 'Twitter Card', pass: !!twitterCard, priority:'low', cat:'SEO',
+      detail: twitterCard || '缺少',
+      fix: '加入 &lt;meta name="twitter:card" content="summary_large_image"&gt;' },
+    // GEO
+    { label: 'Schema.org JSON-LD', pass: jsonLds.length > 0, priority:'high', cat:'GEO',
+      detail: jsonLds.length > 0 ? `找到 ${jsonLds.length} 個結構化資料區塊` : '完全沒有結構化資料',
+      fix: '加入 Organization + WebSite Schema，讓 AI 引擎認識你的品牌實體' },
+    { label: 'FAQPage Schema', pass: hasFaq, priority:'high', cat:'GEO',
+      detail: hasFaq ? 'FAQ 結構化資料存在' : '缺少 FAQ 問答內容',
+      fix: '加入至少 5 題 FAQ 並用 FAQPage JSON-LD 標記，提升 AI 引用機率' },
+    { label: 'Organization Schema', pass: hasOrg, priority:'high', cat:'GEO',
+      detail: hasOrg ? 'Organization 標記存在' : '缺少品牌實體標記',
+      fix: '加入 Organization Schema，包含 name、url、logo、contactPoint、sameAs' },
+    { label: 'llms.txt', pass: hasLlms, priority:'high', cat:'GEO',
+      detail: hasLlms ? '偵測到 llms.txt 引用' : '未找到 llms.txt',
+      fix: '在根目錄建立 /llms.txt，告訴 AI 爬蟲網站核心內容與架構' },
+    { label: 'E-E-A-T 作者/機構', pass: hasAuthor, priority:'high', cat:'GEO',
+      detail: hasAuthor ? '偵測到作者/機構標記' : '缺少作者或機構信任信號',
+      fix: '加入作者資訊、關於我們頁面、機構 Schema，提升可信度' },
+    { label: '內容深度 (H1+描述)', pass: h1s.length > 0 && desc.length > 80, priority:'medium', cat:'GEO',
+      detail: `H1: ${h1s.length > 0 ? '有' : '無'}，描述長度: ${desc.length} 字`,
+      fix: '確保有 H1 標題和詳細的 meta description，提升 AI 引用品質' },
+  ];
 
-  // GEO scoring
-  if (jsonLds.length > 0) { geoScore += 20; }
-  const htmlLower = html.toLowerCase();
-  if (htmlLower.includes('"faqpage"') || htmlLower.includes('"question"')) { geoScore += 15; }
-  if (htmlLower.includes('llms.txt')) { geoScore += 10; }
-  if (doc.querySelectorAll('address, [itemprop="author"]').length > 0) { geoScore += 8; }
-  geoScore += 10; // base brand recognition
-  geoScore += 5; // has internal links = some structure
+  const highIssues   = checks.filter(c => !c.pass && c.priority === 'high').length;
+  const medIssues    = checks.filter(c => !c.pass && c.priority === 'medium').length;
+  const passCount    = checks.filter(c => c.pass).length;
 
-  // Cap
-  seoScore = Math.min(100, Math.max(0, seoScore));
-  geoScore = Math.min(100, Math.max(0, geoScore));
-
-  // Update UI
+  // ── 更新 UI ──────────────────────────────────────────
   document.getElementById('displayUrl').textContent = url;
   document.getElementById('scanTime').textContent = '掃描時間：' + new Date().toLocaleDateString('zh-TW');
 
-  // Update score rings
-  const circumference = 238.76;
-  const rings = document.querySelectorAll('.score-ring circle:last-child');
-  if (rings[0]) {
-    const offset = circumference * (1 - seoScore / 100);
-    rings[0].style.strokeDashoffset = offset;
-    const color = seoScore >= 70 ? 'var(--good)' : seoScore >= 40 ? 'var(--warn)' : 'var(--bad)';
-    rings[0].style.stroke = color;
-    const numEl = rings[0].closest('.score-ring').querySelector('.num');
-    if (numEl) { numEl.textContent = seoScore; numEl.style.color = color; }
+  // Quick stats
+  const qs = document.querySelectorAll('.stat-card .stat-num');
+  if (qs[0]) qs[0].textContent = highIssues;
+  if (qs[1]) qs[1].textContent = medIssues;
+  if (qs[2]) qs[2].textContent = passCount;
+  if (qs[3]) qs[3].textContent = checks.length;
+
+  // Score rings helper
+  function updateRing(idx, score) {
+    const circumference = 238.76;
+    const rings = document.querySelectorAll('.score-ring circle:last-child');
+    if (!rings[idx]) return;
+    rings[idx].style.strokeDashoffset = circumference * (1 - score / 100);
+    const color = score >= 70 ? 'var(--good)' : score >= 40 ? 'var(--warn)' : 'var(--bad)';
+    rings[idx].style.stroke = color;
+    const numEl = rings[idx].closest('.score-ring').querySelector('.num');
+    if (numEl) { numEl.textContent = score; numEl.style.color = color; }
+    const badge = rings[idx].closest('.score-card')?.querySelector('.grade-badge');
+    if (badge) {
+      const grade = score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : score >= 25 ? 'D' : 'F';
+      const labels = { A:'優秀', B:'良好', C:'待改善', D:'急需改善', F:'幾乎不可見' };
+      badge.textContent = `${grade} 級 — ${labels[grade]}`;
+      badge.style.background = color === 'var(--good)' ? 'rgba(0,201,167,0.15)' : color === 'var(--warn)' ? 'rgba(255,217,61,0.15)' : 'rgba(255,107,107,0.15)';
+      badge.style.color = color;
+    }
   }
-  if (rings[1]) {
-    const offset = circumference * (1 - geoScore / 100);
-    rings[1].style.strokeDashoffset = offset;
-    const color = geoScore >= 70 ? 'var(--good)' : geoScore >= 40 ? 'var(--warn)' : 'var(--bad)';
-    rings[1].style.stroke = color;
-    const numEl = rings[1].closest('.score-ring').querySelector('.num');
-    if (numEl) { numEl.textContent = geoScore; numEl.style.color = color; }
+  updateRing(0, seoScore);
+  updateRing(1, geoScore);
+
+  // ── 動態產生問題清單 ──────────────────────────────────
+  function renderIssueItem(c) {
+    const priLabel = { high:'HIGH', medium:'MED', low:'LOW' }[c.priority];
+    const priClass = c.priority;
+    const statusClass = c.pass ? 'good' : (c.priority === 'high' ? 'bad' : 'warn');
+    const statusIcon  = c.pass ? '✓' : (c.priority === 'high' ? '✕' : '!');
+    const catTag = `<span class="tag" style="color:${c.cat==='GEO'?'var(--accent)':'var(--accent2)'}">${c.cat}</span>`;
+    const fixBlock = c.pass ? '' : `<div class="issue-fix">${c.fix}</div>`;
+    return `<div class="issue-item ${statusClass}">
+      <div class="issue-status ${statusClass}">${statusIcon}</div>
+      <div class="issue-content">
+        <div class="issue-title">${catTag} ${c.label}</div>
+        <div class="issue-desc">${c.detail}</div>
+        ${fixBlock}
+      </div>
+      <span class="priority-tag ${c.pass ? '' : priClass}" style="${c.pass ? 'background:rgba(0,201,167,0.1);color:var(--good)' : ''}">${c.pass ? 'PASS' : priLabel}</span>
+    </div>`;
   }
 
-  // Show results
+  const seoChecks = checks.filter(c => c.cat === 'SEO');
+  const geoChecks = checks.filter(c => c.cat === 'GEO');
+  const seoHigh = seoChecks.filter(c => !c.pass && c.priority === 'high').length;
+  const seoWarn = seoChecks.filter(c => !c.pass && c.priority !== 'high').length;
+  const geoHigh = geoChecks.filter(c => !c.pass && c.priority === 'high').length;
+  const geoWarn = geoChecks.filter(c => !c.pass && c.priority !== 'high').length;
+
+  // 找到 issues tab 的 section body 並重繪
+  const issueSection = document.querySelector('#tab-issues .section-body');
+  if (issueSection) {
+    issueSection.innerHTML = `
+      <div style="margin-bottom:10px;font-size:0.83rem;color:var(--text2)">
+        SEO：<span style="color:var(--bad)">● ${seoHigh} 嚴重</span>
+        <span style="color:var(--warn);margin-left:8px">● ${seoWarn} 警告</span>
+        <span style="color:var(--good);margin-left:8px">● ${seoChecks.filter(c=>c.pass).length} 通過</span>
+        &nbsp;｜&nbsp;
+        GEO：<span style="color:var(--bad)">● ${geoHigh} 嚴重</span>
+        <span style="color:var(--warn);margin-left:8px">● ${geoWarn} 警告</span>
+        <span style="color:var(--good);margin-left:8px">● ${geoChecks.filter(c=>c.pass).length} 通過</span>
+      </div>
+      <div class="issue-list">
+        ${[...seoChecks.filter(c=>!c.pass && c.priority==='high'),
+           ...geoChecks.filter(c=>!c.pass && c.priority==='high'),
+           ...seoChecks.filter(c=>!c.pass && c.priority!=='high'),
+           ...geoChecks.filter(c=>!c.pass && c.priority!=='high'),
+           ...checks.filter(c=>c.pass)
+          ].map(renderIssueItem).join('')}
+      </div>`;
+  }
+
+  // 更新 section header 的計數
+  const issueHeader = document.querySelector('#tab-issues .section-header .section-meta');
+  if (issueHeader) {
+    issueHeader.innerHTML = `<span style="color:var(--bad)">● ${highIssues} 個嚴重</span><span style="color:var(--warn)">● ${medIssues} 個警告</span><span class="chevron">▼</span>`;
+  }
+
   document.getElementById('introArea').style.display = 'none';
   document.getElementById('resultsArea').classList.add('visible');
 
-  // Show a quick summary alert
-  const grade = (score) => score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : score >= 25 ? 'D' : 'F';
-  console.log(`SEO: ${seoScore}/100 (${grade(seoScore)}) | GEO: ${geoScore}/100 (${grade(geoScore)})`);
+  // 切換到問題清單 tab
+  switchTab('issues');
+
 }
 
 // Animate metric bars on load
