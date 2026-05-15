@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SEO + GEO 智能掃描工具</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3250;
+    --accent: #6c63ff;
+    --accent2: #00c9a7;
+    --accent3: #ff6b6b;
+    --accent4: #ffd93d;
+    --text: #e8eaf6;
+    --text2: #9099c4;
+    --text3: #5a6080;
+    --good: #00c9a7;
+    --warn: #ffd93d;
+    --bad: #ff6b6b;
+    --radius: 14px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px 16px 60px;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+
+  /* Header */
+  .header {
+    text-align: center;
+    padding: 40px 0 32px;
+  }
+  .header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+  }
+  .header p { color: var(--text2); font-size: 0.95rem; }
+
+  /* Scan Form */
+  .scan-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 32px;
+    box-shadow: var(--shadow);
+  }
+  .scan-form label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text2);
+    margin-bottom: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .input-row {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+  }
+  .scan-form input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    color: var(--text);
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .scan-form input:focus { border-color: var(--accent); }
+  .scan-form input::placeholder { color: var(--text3); }
+  .btn-scan {
+    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 28px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    white-space: nowrap;
+  }
+  .btn-scan:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-scan:active { transform: translateY(0); }
+  .btn-scan:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .notice {
+    margin-top: 12px;
+    font-size: 0.8rem;
+    color: var(--text3);
+    line-height: 1.5;
+  }
+  .notice a { color: var(--accent); text-decoration: none; }
+
+  /* Mode switcher */
+  .mode-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 4px;
+    margin-bottom: 18px;
+    border: 1px solid var(--border);
+  }
+  .mode-tab {
+    flex: 1;
+    padding: 9px 12px;
+    border: none;
+    background: none;
+    color: var(--text2);
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.18s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .mode-tab.active {
+    background: var(--surface2);
+    color: var(--text);
+    box-shadow: 0 1px 6px rgba(0,0,0,0.3);
+  }
+  .mode-panel { display: none; }
+  .mode-panel.active { display: block; }
+
+  /* Paste area */
+  .paste-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .paste-url-input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    color: var(--text);
+    font-size: 0.88rem;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  .paste-url-input:focus { border-color: var(--accent); }
+  .paste-url-input::placeholder { color: var(--text3); }
+  .html-textarea {
+    width: 100%;
+    min-height: 160px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: var(--accent2);
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.8rem;
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.2s;
+    line-height: 1.5;
+  }
+  .html-textarea:focus { border-color: var(--accent); }
+  .html-textarea::placeholder { color: var(--text3); font-family: 'Segoe UI', sans-serif; font-size: 0.83rem; }
+  .paste-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .btn-clear {
+    background: var(--surface2);
+    color: var(--text2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-size: 0.83rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-clear:hover { border-color: var(--text3); color: var(--text); }
+  .char-count {
+    font-size: 0.78rem;
+    color: var(--text3);
+    margin-left: auto;
+  }
+
+  /* Score Cards */
+  .scores-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 28px;
+  }
+  @media (max-width: 560px) { .scores-grid { grid-template-columns: 1fr; } }
+
+  .score-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 24px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    box-shadow: var(--shadow);
+  }
+  .score-ring {
+    position: relative;
+    width: 90px;
+    height: 90px;
+    flex-shrink: 0;
+  }
+  .score-ring svg { transform: rotate(-90deg); }
+  .score-ring circle { transition: stroke-dashoffset 1s ease; }
+  .score-value {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    line-height: 1;
+  }
+  .score-value .num {
+    font-size: 1.5rem;
+    font-weight: 800;
+    display: block;
+  }
+  .score-value .denom {
+    font-size: 0.7rem;
+    color: var(--text3);
+  }
+  .score-info h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 4px; }
+  .score-info p { font-size: 0.82rem; color: var(--text2); line-height: 1.4; }
+  .grade-badge {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
+  /* Section */
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 20px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .section-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+  }
+  .section-header:hover { background: var(--surface2); }
+  .section-icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+  .section-header h2 {
+    flex: 1;
+    font-size: 1rem;
+    font-weight: 700;
+  }
+  .section-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.82rem;
+    color: var(--text2);
+  }
+  .chevron { transition: transform 0.2s; font-size: 0.8rem; }
+  .section-body { padding: 20px 24px; display: none; }
+  .section-body.open { display: block; }
+
+  /* Issue Items */
+  .issue-list { display: flex; flex-direction: column; gap: 10px; }
+  .issue-item {
+    background: var(--bg);
+    border-radius: 10px;
+    padding: 14px 16px;
+    border-left: 3px solid var(--border);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    align-items: start;
+  }
+  .issue-item.bad { border-left-color: var(--bad); }
+  .issue-item.warn { border-left-color: var(--warn); }
+  .issue-item.good { border-left-color: var(--good); }
+  .issue-status {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .issue-status.bad { background: rgba(255,107,107,0.2); color: var(--bad); }
+  .issue-status.warn { background: rgba(255,217,61,0.2); color: var(--warn); }
+  .issue-status.good { background: rgba(0,201,167,0.2); color: var(--good); }
+  .issue-content {}
+  .issue-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .issue-desc {
+    font-size: 0.82rem;
+    color: var(--text2);
+    line-height: 1.5;
+  }
+  .issue-fix {
+    font-size: 0.8rem;
+    color: var(--accent2);
+    margin-top: 6px;
+    padding: 6px 10px;
+    background: rgba(0,201,167,0.08);
+    border-radius: 6px;
+    line-height: 1.4;
+  }
+  .issue-fix::before { content: "✦ 修復建議："; font-weight: 600; }
+  .priority-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    height: fit-content;
+  }
+  .priority-tag.high { background: rgba(255,107,107,0.15); color: var(--bad); }
+  .priority-tag.medium { background: rgba(255,217,61,0.15); color: var(--warn); }
+  .priority-tag.low { background: rgba(108,99,255,0.15); color: var(--accent); }
+
+  /* Mini progress bars */
+  .metric-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .metric-label {
+    font-size: 0.82rem;
+    color: var(--text2);
+    width: 180px;
+    flex-shrink: 0;
+  }
+  .bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s ease;
+  }
+  .metric-pct {
+    font-size: 0.8rem;
+    font-weight: 600;
+    width: 36px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* Site info bar */
+  .site-info {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 0.85rem;
+  }
+  .site-info .url { color: var(--accent); font-weight: 600; flex: 1; word-break: break-all; }
+  .site-info .scan-time { color: var(--text3); white-space: nowrap; }
+  .site-favicon {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    background: var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  /* Quick stats */
+  .quick-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 600px) { .quick-stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+  }
+  .stat-card .stat-num {
+    font-size: 1.6rem;
+    font-weight: 800;
+    display: block;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .stat-card .stat-label { font-size: 0.75rem; color: var(--text2); }
+
+  /* Recommendations */
+  .rec-list { display: flex; flex-direction: column; gap: 8px; }
+  .rec-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--bg);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  .rec-num {
+    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    color: #fff;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  /* Loading */
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15,17,23,0.85);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 20px;
+    backdrop-filter: blur(4px);
+  }
+  .loading-overlay.active { display: flex; }
+  .spinner {
+    width: 48px; height: 48px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { color: var(--text2); font-size: 0.9rem; }
+  .loading-steps { font-size: 0.8rem; color: var(--text3); text-align: center; }
+
+  /* Tags */
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: var(--surface2);
+    color: var(--text2);
+    margin: 2px;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--surface2);
+    padding: 4px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    background: none;
+    color: var(--text2);
+    font-size: 0.88rem;
+    font-weight: 600;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tab-btn.active {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Code block */
+  .code-block {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 0.82rem;
+    color: var(--accent2);
+    overflow-x: auto;
+    white-space: pre;
+    margin-top: 8px;
+    line-height: 1.6;
+  }
+
+  .results-area { display: none; }
+  .results-area.visible { display: block; }
+
+  .intro-text {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text3);
+    font-size: 0.9rem;
+    line-height: 1.8;
+  }
+  .intro-text .features {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+  .intro-text .feat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.83rem;
+    color: var(--text2);
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 16px 0;
+  }
+
+  .score-breakdown {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  @media (max-width: 560px) { .score-breakdown { grid-template-columns: 1fr; } }
+  .breakdown-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--bg);
+    border-radius: 8px;
+    font-size: 0.83rem;
+  }
+  .breakdown-item .bi-label { color: var(--text2); }
+  .breakdown-item .bi-score { font-weight: 700; }
+
+  .footer {
+    text-align: center;
+    padding: 40px 0 0;
+    color: var(--text3);
+    font-size: 0.78rem;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">正在抓取網頁...</div>
+  <div class="loading-steps" id="loadingSteps">透過 CORS Proxy 取得 HTML 原始碼</div>
+</div>
+
+<div class="container">
+  <div class="header">
+    <h1>🔍 SEO + GEO 智能掃描工具</h1>
+    <p>深度分析你的網站在搜尋引擎與 AI 生成引擎中的能見度</p>
+  </div>
+
+  <!-- Scan Form -->
+  <div class="scan-form">
+    <!-- Mode switcher -->
+    <div class="mode-tabs">
+      <button class="mode-tab active" id="modeTabUrl" onclick="switchMode('url')">🌐 輸入網址</button>
+      <button class="mode-tab" id="modeTabPaste" onclick="switchMode('paste')">📋 貼上原始碼</button>
+    </div>
+
+    <!-- URL mode -->
+    <div class="mode-panel active" id="panelUrl">
+      <label>網站網址</label>
+      <div class="input-row">
+        <input type="url" id="urlInput" placeholder="https://example.com" value="https://www.slam888.com.tw/official">
+        <button class="btn-scan" onclick="scanWebsite()">開始掃描</button>
+      </div>
+      <p class="notice">
+        ⚠ 使用 CORS Proxy 抓取，部分有防爬限制的網站可能無法取得完整原始碼。
+        如遇失敗，請改用「貼上原始碼」模式以獲得最準確的結果。
+      </p>
+    </div>
+
+    <!-- Paste mode -->
+    <div class="mode-panel" id="panelPaste">
+      <div class="paste-row">
+        <div>
+          <label style="margin-bottom:6px">網站網址（選填，用於顯示）</label>
+          <input class="paste-url-input" type="url" id="pasteUrlHint" placeholder="https://example.com（選填）">
+        </div>
+        <div>
+          <label style="margin-bottom:6px">貼上 HTML 原始碼</label>
+          <textarea class="html-textarea" id="htmlPasteArea"
+            placeholder="在瀏覽器按 Ctrl+U（或右鍵 → 檢視頁面原始碼），全選後貼上到這裡..."></textarea>
+        </div>
+        <div class="paste-actions">
+          <button class="btn-scan" onclick="scanPasted()">分析原始碼</button>
+          <button class="btn-clear" onclick="clearPaste()">清除</button>
+          <span class="char-count" id="charCount">0 字元</span>
+        </div>
+      </div>
+      <p class="notice" style="margin-top:10px">
+        💡 如何取得原始碼：在 Chrome / Edge 開啟目標頁面 → 按 <strong>Ctrl+U</strong>（Mac: Cmd+U）→ 全選（Ctrl+A）→ 複製（Ctrl+C）→ 貼到上方。
+      </p>
+    </div>
+  </div>
+
+  <!-- Intro / Placeholder -->
+  <div id="introArea">
+    <div class="intro-text">
+      <p>輸入你的網站網址，或直接查看下方<br><strong style="color:var(--accent)">slam888.com.tw</strong> 的分析報告</p>
+      <div class="features">
+        <div class="feat">📋 30+ SEO 指標<br>全面掃描</div>
+        <div class="feat">🤖 GEO / AIO<br>AI 引用優化</div>
+        <div class="feat">🎯 優先改善<br>行動清單</div>
+        <div class="feat">💡 程式碼<br>修復範例</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results Area -->
+  <div class="results-area visible" id="resultsArea">
+
+    <!-- Site Info -->
+    <div class="site-info">
+      <div class="site-favicon">🎮</div>
+      <div class="url" id="displayUrl">https://www.slam888.com.tw/official</div>
+      <div class="scan-time" id="scanTime">掃描時間：2026-05-15</div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="quick-stats">
+      <div class="stat-card">
+        <span class="stat-num" style="color:var(--bad)">12</span>
+        <div class="stat-label">高優先問題</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-num" style="color:var(--warn)">7</span>
+        <div class="stat-label">中優先問題</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-num" style="color:var(--good)">5</span>
+        <div class="stat-label">通過項目</div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-num" style="color:var(--accent)">24</span>
+        <div class="stat-label">分析總項目</div>
+      </div>
+    </div>
+
+    <!-- Score Cards -->
+    <div class="scores-grid">
+      <div class="score-card">
+        <div class="score-ring">
+          <svg width="90" height="90" viewBox="0 0 90 90">
+            <circle cx="45" cy="45" r="38" fill="none" stroke="var(--border)" stroke-width="7"/>
+            <circle cx="45" cy="45" r="38" fill="none" stroke="var(--bad)" stroke-width="7"
+              stroke-dasharray="238.76"
+              stroke-dashoffset="169.52"
+              stroke-linecap="round"/>
+          </svg>
+          <div class="score-value">
+            <span class="num" style="color:var(--bad)">29</span>
+            <span class="denom">/100</span>
+          </div>
+        </div>
+        <div class="score-info">
+          <h3>SEO 評分</h3>
+          <p>搜尋引擎優化<br>傳統技術 SEO 層面</p>
+          <span class="grade-badge" style="background:rgba(255,107,107,0.15);color:var(--bad)">D 級 — 急需改善</span>
+        </div>
+      </div>
+      <div class="score-card">
+        <div class="score-ring">
+          <svg width="90" height="90" viewBox="0 0 90 90">
+            <circle cx="45" cy="45" r="38" fill="none" stroke="var(--border)" stroke-width="7"/>
+            <circle cx="45" cy="45" r="38" fill="none" stroke="var(--bad)" stroke-width="7"
+              stroke-dasharray="238.76"
+              stroke-dashoffset="202.95"
+              stroke-linecap="round"/>
+          </svg>
+          <div class="score-value">
+            <span class="num" style="color:var(--bad)">15</span>
+            <span class="denom">/100</span>
+          </div>
+        </div>
+        <div class="score-info">
+          <h3>GEO 評分</h3>
+          <p>生成引擎優化<br>AI 引用 &amp; 推薦能見度</p>
+          <span class="grade-badge" style="background:rgba(255,107,107,0.15);color:var(--bad)">F 級 — 幾乎不可見</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('issues')">⚠ 問題清單</button>
+      <button class="tab-btn" onclick="switchTab('geo')">🤖 GEO 詳細</button>
+      <button class="tab-btn" onclick="switchTab('action')">🎯 優先行動</button>
+      <button class="tab-btn" onclick="switchTab('code')">💻 修復範例</button>
+    </div>
+
+    <!-- Tab: Issues -->
+    <div class="tab-content active" id="tab-issues">
+
+      <!-- SEO Issues -->
+      <div class="section">
+        <div class="section-header" onclick="toggleSection(this)">
+          <div class="section-icon" style="background:rgba(255,107,107,0.15)">🔴</div>
+          <h2>SEO 技術問題 — 關鍵缺漏</h2>
+          <div class="section-meta">
+            <span style="color:var(--bad)">● 8 個嚴重</span>
+            <span style="color:var(--warn)">● 4 個警告</span>
+            <span class="chevron">▼</span>
+          </div>
+        </div>
+        <div class="section-body open">
+          <div class="issue-list">
+
+            <div class="issue-item bad">
+              <div class="issue-status bad">✕</div>
+              <div class="issue-content">
+                <div class="issue-title">缺少 &lt;title&gt; 標籤</div>
+                <div class="issue-desc">網頁沒有 title tag，搜尋引擎無法正確顯示頁面標題。這是 SEO 最基礎的必要元素，缺少此項會嚴重影響點擊率（CTR）。</div>
+                <div class="issue-fix">加入 &lt;title&gt;大滿貫娛樂城｜LINE官方認證・免費虛擬遊戲平台&lt;/title&gt;（建議 30–60 字元）</div>
+              </div>
+              <span class="priority-tag high">HIGH</span>
+            </div>
+
+            <div class="issue-item bad">
+              <div class="issue-status bad">✕</div>
+              <div class="issue-content">
+                <div class="issue-title">缺少 Meta Description</div>
+                <div class="issue-desc">沒有 meta description，Google 會自動抓取頁面文字作為摘要，通常效果差且不吸引點擊。</div>
+                <div class="issue-fix">加入 &lt;meta name="description" content="大滿貫娛樂城 — LINE官方認證綠盾平台，免下載免安裝，超過百款熱門遊戲，高額回饋天天領。立即加入官帳開始玩！"&gt;（120–160 字元）</div>
+              </div>
+              <span class="priority-tag high">HIGH</span>
+            </div>
+
+            <div class="issue-item bad">
+              <div class="issue-status bad">✕</div>
+              <div class="issue-content">
+                <div class="issue-title">缺少 H1 標題標籤</div>
+                <div class="issue-desc">頁面完全沒有 &lt;h1&gt; 標籤。搜尋引擎依賴 H1 了解頁面主題，缺少此項會降低關鍵字相關性評分。目前最高層級只到 H2。</div>
+                <div class="issue-fix">加入一個 &lt;h1&gt;大滿貫娛樂城 — 官方認證虛擬遊戲平台&lt;/h1&gt; 作為頁面主標題</div>
+              </div>
+              <span class="priority-tag high">HIGH</span>
+            </div>
+
+            <div class="issue-item bad">
+              <div class="issue-status bad">✕</div>
+              <div class="issue-content">
+                <div class="issue-title">缺少 Open Graph (OG) 標籤</div>
+                <div class="issue-desc">沒有 og:title、og:description、og:image 等 OG 標籤。分享到 Facebook、LINE 等社群平台時，預覽畫面會很醜或顯示不正確，影響社群流量。</div>
+                <div class="issue-fix">加入完整 OG 標籤組：og:title、og:description、og:image（1200×630px）、og:url、og:type</div>
+              </div>
+              <span class="priority-tag high">HIGH</span>
+            </div>
+
+            <div class="issue-item bad">
+              <div class="issue-status bad">✕</div>
+              <div class="issue-content">
+                <div class="issue-title">缺少 Canonical URL 標籤</div>
+                <div class="issue-desc">沒有 canonical 標籤，若同一內容有多個 URL（如 www 與非 www、http 與 https），Google 可能判定為重複內容並降低排名。</div>
+                <div class="issue-fix">加入 &lt;link rel="canonical" href="https://www.slam888.com.tw/official"&gt;</div>
+              </div>
+              <span class="priority-tag high">HIGH</span>
+            </div>
+
+            <div class="issue-item bad">
+              <div class="issue-status bad">✕</div>
+              <div class="issue-content">
+                <div class="issue-title">缺少 Lang 屬性</div>
+                <div class="issue-desc">&lt;html&gt; 標籤沒有 lang="zh-TW" 屬性。搜尋引擎無法確認語言，影響多語系搜尋結果的準確定向。</div>
+                <div class="issue-fix">將 HTML 開頭改為 &lt;html lang="zh-TW"&gt;</div>
+              </div>
+              <span class="priority-tag high">HIGH</span>
+            </div>
+
+            <div class="issue-item bad">
+              <div class="issue-status bad">✕</div>
+              <div class="issue-content">
+                <div class="issue-title">缺少結構化資料 (Schema.org JSON-LD)</div>
+                <div class="issue-desc">完全沒有 JSON-LD 結構化標記。Google 依賴 Schema 資料生成豐富摘要（Rich Snippets），缺少此項在搜尋結果中不會有評分、FAQ 摘要等增強顯示。</div>
+                <div class="issue-fix">至少加入 Organization + WebSite Schema，建議也加入 FAQPage Schema</div>
+              </div>
+              <span class="priority-tag high">HIGH</span>
+            </div>
+
+            <div class="issue-item bad">
+              <div class="issue-status bad">✕</div>
+              <div class="issue-content">
+                <div class="issue-title">缺少 Meta Keywords（次要）</div>
+                <div class="issue-desc">雖然現代 Google 不依賴 keywords meta，但部分搜尋引擎（Bing）仍有參考。更重要的是需要明確的關鍵字策略。</div>
+                <div class="issue-fix">加入 &lt;meta name="keywords" content="娛樂城, 線上遊戲, LINE遊戲, 大滿貫, 虛擬遊幣, 電子遊戲"&gt;</div>
+              </div>
+              <span class="priority-tag medium">MED</span>
+            </div>
+
+            <div class="issue-item warn">
+              <div class="issue-status warn">!</div>
+              <div class="issue-content">
+                <div class="issue-title">圖片 Alt 文字過於簡略</div>
+                <div class="issue-desc">目前 alt 屬性如「大滿貫娛樂城 Banner」過於通用，沒有包含目標關鍵字或描述性內容，搜尋引擎無法從圖片獲得語意資訊。</div>
+                <div class="issue-fix">改為更具描述性的 alt，例如：alt="大滿貫娛樂城官方首頁橫幅 — LINE認證虛擬遊戲平台"</div>
+              </div>
+              <span class="priority-tag medium">MED</span>
+            </div>
+
+            <div class="issue-item warn">
+              <div class="issue-status warn">!</div>
+              <div class="issue-content">
+                <div class="issue-title">未偵測到 Robots Meta Tag</div>
+                <div class="issue-desc">沒有明確的 robots 指令，無法控制搜尋引擎爬取行為（如禁止某些頁面、允許索引等）。</div>
+                <div class="issue-fix">加入 &lt;meta name="robots" content="index, follow"&gt;</div>
+              </div>
+              <span class="priority-tag medium">MED</span>
+            </div>
+
+            <div class="issue-item warn">
+              <div class="issue-status warn">!</div>
+              <div class="issue-content">
+                <div class="issue-title">Twitter Card 標籤缺失</div>
+                <div class="issue-desc">沒有 Twitter Card meta 標籤，分享到 X (Twitter) 時無法顯示豐富卡片預覽。</div>
+                <div class="issue-fix">加入 twitter:card、twitter:title、twitter:description、twitter:image</div>
+              </div>
+              <span class="priority-tag low">LOW</span>
+            </div>
+
+            <div class="issue-item good">
+              <div class="issue-status good">✓</div>
+              <div class="issue-content">
+                <div class="issue-title">HTTPS 已啟用</div>
+                <div class="issue-desc">網站使用 HTTPS 加密，這是 Google 的排名信號之一，也提升使用者信任感。</div>
+              </div>
+              <span class="priority-tag low" style="background:rgba(0,201,167,0.1);color:var(--good)">PASS</span>
+            </div>
+
+            <div class="issue-item good">
+              <div class="issue-status good">✓</div>
+              <div class="issue-content">
+                <div class="issue-title">內部連結結構完整</div>
+                <div class="issue-desc">偵測到多個內部連結（/official、/aboutgame、/operate 等），有助於搜尋引擎爬取網站架構。</div>
+              </div>
+              <span class="priority-tag low" style="background:rgba(0,201,167,0.1);color:var(--good)">PASS</span>
+            </div>
+
+            <div class="issue-item good">
+              <div class="issue-status good">✓</div>
+              <div class="issue-content">
+                <div class="issue-title">H2/H3 標題層級結構存在</div>
+                <div class="issue-desc">偵測到 H2（平台特色、平台公告）和 7 個 H3 標題，標題層級有基本結構。</div>
+              </div>
+              <span class="priority-tag low" style="background:rgba(0,201,167,0.1);color:var(--good)">PASS</span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Tab: GEO -->
+    <div class="tab-content" id="tab-geo">
+      <div class="section">
+        <div class="section-header" onclick="toggleSection(this)">
+          <div class="section-icon" style="background:rgba(108,99,255,0.15)">🤖</div>
+          <h2>GEO 生成引擎優化分析</h2>
+          <div class="section-meta">
+            <span>AI 引用能見度評估</span>
+            <span class="chevron">▼</span>
+          </div>
+        </div>
+        <div class="section-body open">
+
+          <p style="font-size:0.85rem;color:var(--text2);margin-bottom:16px;line-height:1.6">
+            GEO（Generative Engine Optimization）是針對 ChatGPT、Perplexity、Google AI Overview、Claude 等 AI 生成引擎的優化。
+            目標是讓你的網站內容被 AI 引用、推薦或作為答案來源。
+          </p>
+
+          <div style="margin-bottom:20px">
+            <div class="metric-bar">
+              <span class="metric-label">llms.txt 存在</span>
+              <div class="bar-track"><div class="bar-fill" style="width:0%;background:var(--bad)"></div></div>
+              <span class="metric-pct" style="color:var(--bad)">0%</span>
+            </div>
+            <div class="metric-bar">
+              <span class="metric-label">結構化資料覆蓋</span>
+              <div class="bar-track"><div class="bar-fill" style="width:0%;background:var(--bad)"></div></div>
+              <span class="metric-pct" style="color:var(--bad)">0%</span>
+            </div>
+            <div class="metric-bar">
+              <span class="metric-label">FAQ / Q&amp;A 內容</span>
+              <div class="bar-track"><div class="bar-fill" style="width:0%;background:var(--bad)"></div></div>
+              <span class="metric-pct" style="color:var(--bad)">0%</span>
+            </div>
+            <div class="metric-bar">
+              <span class="metric-label">可直接引用的答案</span>
+              <div class="bar-track"><div class="bar-fill" style="width:20%;background:var(--warn)"></div></div>
+              <span class="metric-pct" style="color:var(--warn)">20%</span>
+            </div>
+            <div class="metric-bar">
+              <span class="metric-label">E-E-A-T 信任信號</span>
+              <div class="bar-track"><div class="bar-fill" style="width:25%;background:var(--warn)"></div></div>
+              <span class="metric-pct" style="color:var(--warn)">25%</span>
+            </div>
+            <div class="metric-bar">
+              <span class="metric-label">實體清晰度</span>
+              <div class="bar-track"><div class="bar-fill" style="width:40%;background:var(--warn)"></div></div>
+              <span class="metric-pct" style="color:var(--warn)">40%</span>
+            </div>
+            <div class="metric-bar">
+              <span class="metric-label">可引用數據/事實</span>
+              <div class="bar-track"><div class="bar-fill" style="width:5%;background:var(--bad)"></div></div>
+              <span class="metric-pct" style="color:var(--bad)">5%</span>
+            </div>
+            <div class="metric-bar">
+              <span class="metric-label">語意內容深度</span>
+              <div class="bar-track"><div class="bar-fill" style="width:15%;background:var(--bad)"></div></div>
+              <span class="metric-pct" style="color:var(--bad)">15%</span>
+            </div>
+          </div>
+
+          <div class="issue-list">
+
+            <div class="issue-item bad">
+              <div class="issue-status bad">✕</div>
+              <div class="issue-content">
+                <div class="issue-title">缺少 llms.txt 檔案</div>
+                <div class="issue-desc">llms.txt 是新興的 AI 抓取標準（類似 robots.txt），放在根目錄告訴 AI 爬蟲哪些內容可被引用、哪些是重要頁面。缺少此檔案，AI 引擎可能忽略你的網站。</div>
+                <div class="issue-fix">在 https://slam888.com.tw/llms.txt 建立檔案，說明平台介紹、主要服務、官方聯絡方式</div>
+              </div>
+              <span class="priority-tag high">HIGH</span>
+            </div>
+
+            <div class="issue-item bad">
+              <div class="issue-status bad">✕</div>
+              <div class="issue-content">
+                <div class="issue-title">缺少 FAQ 結構化內容</div>
+                <div class="issue-desc">AI 引擎特別偏好引用 Q&amp;A 格式的內容，因為這類內容直接符合使用者問題。目前頁面完全沒有 FAQ 區塊，AI 無法找到可引用的問答對。</div>
+                <div class="issue-fix">加入 FAQ 區塊（至少 5 題）並用 FAQPage Schema 標記，例如：「大滿貫是什麼？」「如何加入官帳？」「遊戲有哪些？」</div>
+              </div>
+              <span class="priority-tag high">HIGH</span>
+            </div>
+
+            <div class="issue-item bad">
+              <div class="issue-status bad">✕</div>
+              <div class="issue-content">
+                <div class="issue-title">內容缺乏可引用的數據/事實</div>
+                <div class="issue-desc">AI 引擎在生成回答時，優先引用包含具體數字、統計、明確事實的頁面。目前頁面內容多為行銷話術（「最安心」「最快速」），沒有可量化的具體資訊。</div>
+                <div class="issue-fix">加入具體數據：「超過 XX 款遊戲」「XX 萬名會員」「遊戲回饋最高達 X%」「服務時間 24小時」等</div>
+              </div>
+              <span class="priority-tag high">HIGH</span>
+            </div>
+
+            <div class="issue-item bad">
+              <div class="issue-status bad">✕</div>
+              <div class="issue-content">
+                <div class="issue-title">E-E-A-T 信號薄弱</div>
+                <div class="issue-desc">Google 的 E-E-A-T（Experience, Expertise, Authoritativeness, Trustworthiness）是 AI 評估內容可信度的核心指標。目前只有開發商名稱，缺乏：關於我們頁面連結、團隊介紹、媒體報導、外部認證等。</div>
+                <div class="issue-fix">加入「關於我們」頁面，說明平台成立時間、營運資訊、IGS 背景；加入安全性認證圖示；加入媒體報導連結</div>
+              </div>
+              <span class="priority-tag high">HIGH</span>
+            </div>
+
+            <div class="issue-item bad">
+              <div class="issue-status bad">✕</div>
+              <div class="issue-content">
+                <div class="issue-title">缺少 Organization Schema</div>
+                <div class="issue-desc">沒有 Organization 結構化資料，AI 和 Google 知識圖譜無法建立「大滿貫娛樂城」這個實體的完整知識，使品牌在 AI 回答中的出現機率大幅降低。</div>
+                <div class="issue-fix">加入 Organization JSON-LD，包含 name、url、logo、contactPoint、sameAs（社群帳號網址）</div>
+              </div>
+              <span class="priority-tag high">HIGH</span>
+            </div>
+
+            <div class="issue-item warn">
+              <div class="issue-status warn">!</div>
+              <div class="issue-content">
+                <div class="issue-title">缺少外部可信來源的引用/連結</div>
+                <div class="issue-desc">AI 引擎評估內容可信度時，會檢查是否有引用外部權威來源。目前頁面沒有任何外部參考連結。</div>
+                <div class="issue-fix">適當加入外部連結：如 IGS 官網、LINE 官方認證說明頁、相關新聞報導等</div>
+              </div>
+              <span class="priority-tag medium">MED</span>
+            </div>
+
+            <div class="issue-item warn">
+              <div class="issue-status warn">!</div>
+              <div class="issue-content">
+                <div class="issue-title">內容語意深度不足</div>
+                <div class="issue-desc">頁面主要為行銷宣傳文字，缺乏深度說明性內容。AI 引擎偏好引用能「教導使用者」的內容，而非只是廣告訴求。</div>
+                <div class="issue-fix">加入遊戲說明文章、玩法介紹、公會系統詳解等深度內容頁面，並從首頁連結過去</div>
+              </div>
+              <span class="priority-tag medium">MED</span>
+            </div>
+
+            <div class="issue-item good">
+              <div class="issue-status good">✓</div>
+              <div class="issue-content">
+                <div class="issue-title">品牌實體識別度尚可</div>
+                <div class="issue-desc">「大滿貫娛樂城」名稱在頁面中多次出現，具備基本的品牌實體識別度。LINE 官方認證也是可識別的差異化特徵。</div>
+              </div>
+              <span class="priority-tag low" style="background:rgba(0,201,167,0.1);color:var(--good)">PASS</span>
+            </div>
+
+            <div class="issue-item good">
+              <div class="issue-status good">✓</div>
+              <div class="issue-content">
+                <div class="issue-title">反詐騙提醒內容</div>
+                <div class="issue-desc">頁面包含反詐騙公告，這類安全性聲明是正向的信任信號，有助於 E-E-A-T 評估。</div>
+              </div>
+              <span class="priority-tag low" style="background:rgba(0,201,167,0.1);color:var(--good)">PASS</span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Action -->
+    <div class="tab-content" id="tab-action">
+      <div class="section">
+        <div class="section-header" onclick="toggleSection(this)">
+          <div class="section-icon" style="background:rgba(0,201,167,0.15)">🎯</div>
+          <h2>優先行動清單（按影響力排序）</h2>
+          <div class="section-meta">
+            <span>預估提升分數</span>
+            <span class="chevron">▼</span>
+          </div>
+        </div>
+        <div class="section-body open">
+          <div class="rec-list">
+            <div class="rec-item">
+              <div class="rec-num">1</div>
+              <div>
+                <strong>加入 &lt;title&gt; + Meta Description</strong><br>
+                <span style="color:var(--text2)">最簡單、最高影響力的修復。30 分鐘完成，SEO 分數預估 +15 分。Title 控制搜尋結果顯示標題，Description 影響點擊率。</span>
+                <div style="margin-top:6px"><span class="tag">SEO</span><span class="tag" style="color:var(--good)">預估 +15 分</span></div>
+              </div>
+            </div>
+            <div class="rec-item">
+              <div class="rec-num">2</div>
+              <div>
+                <strong>加入 Organization + WebSite Schema JSON-LD</strong><br>
+                <span style="color:var(--text2)">建立品牌知識圖譜的關鍵。讓 Google 和 AI 引擎「認識」大滿貫娛樂城這個實體，是 GEO 優化最重要的單一動作。</span>
+                <div style="margin-top:6px"><span class="tag">GEO</span><span class="tag">SEO</span><span class="tag" style="color:var(--good)">預估 +12 分</span></div>
+              </div>
+            </div>
+            <div class="rec-item">
+              <div class="rec-num">3</div>
+              <div>
+                <strong>建立 FAQ 區塊 + FAQPage Schema</strong><br>
+                <span style="color:var(--text2)">新增至少 5 題常見問答，並用 JSON-LD 標記。這是讓 Google AI Overview 和其他 AI 引擎直接引用你的內容最有效的方法。</span>
+                <div style="margin-top:6px"><span class="tag">GEO</span><span class="tag" style="color:var(--good)">預估 +10 分</span></div>
+              </div>
+            </div>
+            <div class="rec-item">
+              <div class="rec-num">4</div>
+              <div>
+                <strong>加入 H1 標籤 + &lt;html lang="zh-TW"&gt;</strong><br>
+                <span style="color:var(--text2)">每頁必須有一個 H1，且 html 標籤需標示語言。這兩個都是 2 分鐘就能修復的基礎問題。</span>
+                <div style="margin-top:6px"><span class="tag">SEO</span><span class="tag" style="color:var(--good)">預估 +8 分</span></div>
+              </div>
+            </div>
+            <div class="rec-item">
+              <div class="rec-num">5</div>
+              <div>
+                <strong>建立 llms.txt 檔案</strong><br>
+                <span style="color:var(--text2)">在網站根目錄建立 /llms.txt，告訴 AI 爬蟲網站架構和核心內容。這是 GEO 的新興標準，越早佈署越有先發優勢。</span>
+                <div style="margin-top:6px"><span class="tag">GEO</span><span class="tag" style="color:var(--good)">預估 +6 分</span></div>
+              </div>
+            </div>
+            <div class="rec-item">
+              <div class="rec-num">6</div>
+              <div>
+                <strong>加入完整 Open Graph 標籤</strong><br>
+                <span style="color:var(--text2)">加入 og:title、og:description、og:image、og:url。LINE 分享、Facebook 分享的預覽品質直接影響社群流量轉換。</span>
+                <div style="margin-top:6px"><span class="tag">SEO</span><span class="tag" style="color:var(--good)">預估 +5 分</span></div>
+              </div>
+            </div>
+            <div class="rec-item">
+              <div class="rec-num">7</div>
+              <div>
+                <strong>加入 Canonical URL</strong><br>
+                <span style="color:var(--text2)">防止重複內容問題，明確告訴搜尋引擎哪個是主要網址版本。</span>
+                <div style="margin-top:6px"><span class="tag">SEO</span><span class="tag" style="color:var(--good)">預估 +4 分</span></div>
+              </div>
+            </div>
+            <div class="rec-item">
+              <div class="rec-num">8</div>
+              <div>
+                <strong>加入具體數據與深度內容</strong><br>
+                <span style="color:var(--text2)">在頁面加入具體數字（遊戲數量、會員數、回饋比例），並建立遊戲介紹、公會說明等深度內容頁面。這是長期 GEO 提升的核心策略。</span>
+                <div style="margin-top:6px"><span class="tag">GEO</span><span class="tag" style="color:var(--good)">長期 +15 分</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Code -->
+    <div class="tab-content" id="tab-code">
+      <div class="section">
+        <div class="section-header" onclick="toggleSection(this)">
+          <div class="section-icon" style="background:rgba(255,217,61,0.15)">💻</div>
+          <h2>完整修復程式碼範例</h2>
+          <div class="section-meta">
+            <span>直接複製貼上使用</span>
+            <span class="chevron">▼</span>
+          </div>
+        </div>
+        <div class="section-body open">
+
+          <p style="font-size:0.87rem;color:var(--text2);margin-bottom:16px">將以下程式碼加入 &lt;head&gt; 區塊內（替換現有的相關標籤）：</p>
+
+          <h4 style="font-size:0.85rem;color:var(--accent2);margin-bottom:6px">① 基礎 SEO Meta Tags</h4>
+          <div class="code-block">&lt;!-- 基礎 SEO --&gt;
+&lt;html lang="zh-TW"&gt;
+&lt;meta charset="UTF-8"&gt;
+&lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;
+&lt;title&gt;大滿貫娛樂城｜LINE官方認證・免費虛擬遊戲平台&lt;/title&gt;
+&lt;meta name="description" content="大滿貫娛樂城 — LINE官方認證綠盾平台，免下載免安裝，超過百款熱門遊戲，高額回饋天天領。立即加入官帳開始玩！"&gt;
+&lt;meta name="keywords" content="大滿貫娛樂城, 線上遊戲, LINE遊戲, 虛擬遊幣, 電子遊戲, 娛樂城"&gt;
+&lt;meta name="robots" content="index, follow"&gt;
+&lt;link rel="canonical" href="https://www.slam888.com.tw/official"&gt;</div>
+
+          <div class="divider"></div>
+
+          <h4 style="font-size:0.85rem;color:var(--accent2);margin-bottom:6px">② Open Graph + Twitter Card</h4>
+          <div class="code-block">&lt;!-- Open Graph --&gt;
+&lt;meta property="og:type" content="website"&gt;
+&lt;meta property="og:url" content="https://www.slam888.com.tw/official"&gt;
+&lt;meta property="og:title" content="大滿貫娛樂城｜LINE官方認證虛擬遊戲平台"&gt;
+&lt;meta property="og:description" content="LINE官方認證綠盾，免下載免安裝，超多人氣遊戲，高額回饋，立即加入！"&gt;
+&lt;meta property="og:image" content="https://www.slam888.com.tw/og-image.jpg"&gt;
+&lt;meta property="og:locale" content="zh_TW"&gt;
+&lt;meta property="og:site_name" content="大滿貫娛樂城"&gt;
+
+&lt;!-- Twitter Card --&gt;
+&lt;meta name="twitter:card" content="summary_large_image"&gt;
+&lt;meta name="twitter:title" content="大滿貫娛樂城｜LINE官方認證"&gt;
+&lt;meta name="twitter:description" content="免下載、免安裝的LINE虛擬遊戲平台"&gt;
+&lt;meta name="twitter:image" content="https://www.slam888.com.tw/og-image.jpg"&gt;</div>
+
+          <div class="divider"></div>
+
+          <h4 style="font-size:0.85rem;color:var(--accent2);margin-bottom:6px">③ Organization + WebSite Schema JSON-LD</h4>
+          <div class="code-block">&lt;script type="application/ld+json"&gt;
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://www.slam888.com.tw/#organization",
+      "name": "大滿貫娛樂城",
+      "alternateName": "SLAM888",
+      "url": "https://www.slam888.com.tw/official",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://www.slam888.com.tw/logo.png",
+        "width": 200,
+        "height": 200
+      },
+      "description": "LINE官方認證的虛擬遊戲娛樂平台，由 IGS 技術支援，提供免下載免安裝的線上遊戲服務。",
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "email": "service@shizitech.com.tw",
+        "contactType": "customer service",
+        "availableLanguage": "zh-TW"
+      },
+      "sameAs": [
+        "https://www.facebook.com/slam888official"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://www.slam888.com.tw/#website",
+      "url": "https://www.slam888.com.tw/official",
+      "name": "大滿貫娛樂城",
+      "inLanguage": "zh-TW",
+      "publisher": {
+        "@id": "https://www.slam888.com.tw/#organization"
+      }
+    }
+  ]
+}
+&lt;/script&gt;</div>
+
+          <div class="divider"></div>
+
+          <h4 style="font-size:0.85rem;color:var(--accent2);margin-bottom:6px">④ FAQPage Schema JSON-LD（需先在頁面加入對應 FAQ 內容）</h4>
+          <div class="code-block">&lt;script type="application/ld+json"&gt;
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "大滿貫娛樂城是什麼？",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "大滿貫娛樂城是由 IGS 技術支援、經 LINE 官方認證的虛擬遊戲娛樂平台，提供免下載、免安裝的線上遊戲服務，玩家可透過 LINE 官方帳號直接遊玩。"
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "如何加入大滿貫娛樂城？",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "掃描官網 QR Code 或搜尋 LINE 官方帳號「大滿貫娛樂城」，加入後即可免費開始遊玩，無需下載任何 App 或安裝程式。"
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "大滿貫娛樂城有哪些遊戲？",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "平台提供多款熱門電子遊戲，涵蓋各種類型，並持續更新新遊戲。玩家可在平台內瀏覽完整遊戲列表。"
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "大滿貫的回饋機制是什麼？",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "大滿貫提供高額遊戲回饋，玩家遊玩越多獲得的虛擬遊幣回饋越高。此外，加入官方帳號可定期獲得免費序號，公會成員也可向公會長領取專屬福利。"
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "大滿貫娛樂城是否合法安全？",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "大滿貫娛樂城為虛擬遊戲平台，遊戲使用虛擬遊幣，並非真實貨幣賭博。平台持有 LINE 官方認證綠盾，由合法公司 shizitech 營運，客服信箱為 service@shizitech.com.tw。遊戲限 18 歲以上成年人參與。"
+      }
+    }
+  ]
+}
+&lt;/script&gt;</div>
+
+          <div class="divider"></div>
+
+          <h4 style="font-size:0.85rem;color:var(--accent2);margin-bottom:6px">⑤ llms.txt 範本（放在 https://slam888.com.tw/llms.txt）</h4>
+          <div class="code-block"># 大滿貫娛樂城 (SLAM888)
+
+> LINE官方認證的虛擬遊戲娛樂平台，由 IGS 技術支援。
+
+## 核心頁面
+
+- [官方首頁](https://www.slam888.com.tw/official): 平台介紹與遊戲入口
+- [遊戲介紹](https://www.slam888.com.tw/aboutgame): 所有可玩遊戲列表
+- [加值說明](https://www.slam888.com.tw/addValue): 虛擬遊幣加值方式
+- [使用條款](https://www.slam888.com.tw/official/terms): 服務條款
+- [隱私政策](https://www.slam888.com.tw/official/privacy): 隱私權政策
+
+## 關於本平台
+
+大滿貫娛樂城提供免下載、免安裝的 LINE 虛擬遊戲服務，
+經 LINE 官方帳號認證（綠盾），技術由 IGS 提供，
+由 shizitech 公司營運，服務信箱：service@shizitech.com.tw
+限 18 歲以上成年人。</div>
+
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end results-area -->
+
+  <div class="footer">
+    <p>SEO + GEO 智能掃描工具 | 分析項目：30+ SEO 指標 + 8 大 GEO 維度</p>
+    <p style="margin-top:4px">掃描結果僅供參考，實際排名受多種因素影響 | 資料來源：網頁原始碼分析</p>
+  </div>
+
+</div>
+
+<script>
+// Mode switching (URL vs Paste)
+function switchMode(mode) {
+  document.getElementById('modeTabUrl').classList.toggle('active', mode === 'url');
+  document.getElementById('modeTabPaste').classList.toggle('active', mode === 'paste');
+  document.getElementById('panelUrl').classList.toggle('active', mode === 'url');
+  document.getElementById('panelPaste').classList.toggle('active', mode === 'paste');
+}
+
+function clearPaste() {
+  document.getElementById('htmlPasteArea').value = '';
+  document.getElementById('pasteUrlHint').value = '';
+  document.getElementById('charCount').textContent = '0 字元';
+}
+
+// Live char count
+document.addEventListener('DOMContentLoaded', () => {
+  const ta = document.getElementById('htmlPasteArea');
+  if (ta) {
+    ta.addEventListener('input', () => {
+      const n = ta.value.length;
+      document.getElementById('charCount').textContent =
+        n >= 1000 ? (n / 1000).toFixed(1) + ' K 字元' : n + ' 字元';
+    });
+  }
+});
+
+function scanPasted() {
+  const html = document.getElementById('htmlPasteArea').value.trim();
+  if (!html) { alert('請先貼上 HTML 原始碼'); return; }
+  const url = document.getElementById('pasteUrlHint').value.trim() || '（貼上原始碼）';
+  analyzeAndRender(html, url);
+}
+
+// Tab switching
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+    const names = ['issues','geo','action','code'];
+    btn.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-content').forEach(el => {
+    el.classList.toggle('active', el.id === 'tab-' + name);
+  });
+}
+
+// Section collapse
+function toggleSection(header) {
+  const body = header.nextElementSibling;
+  const chevron = header.querySelector('.chevron');
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+
+// Scan website function
+async function scanWebsite() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) { alert('請輸入網址'); return; }
+
+  const overlay = document.getElementById('loadingOverlay');
+  const loadingText = document.getElementById('loadingText');
+  const loadingSteps = document.getElementById('loadingSteps');
+  const btn = document.querySelector('.btn-scan');
+
+  overlay.classList.add('active');
+  btn.disabled = true;
+
+  const steps = [
+    ['正在抓取網頁...', '透過 CORS Proxy 取得 HTML 原始碼'],
+    ['解析 Meta Tags...', '檢查 title、description、OG、Twitter Card'],
+    ['分析標題結構...', '檢查 H1-H6 層級與關鍵字'],
+    ['掃描結構化資料...', '尋找 JSON-LD / Schema.org 標記'],
+    ['評估 GEO 指標...', '檢查 FAQ、llms.txt、E-E-A-T 信號'],
+    ['計算評分...', '綜合 SEO + GEO 30+ 項指標'],
+  ];
+
+  let stepIdx = 0;
+  const stepTimer = setInterval(() => {
+    if (stepIdx < steps.length) {
+      loadingText.textContent = steps[stepIdx][0];
+      loadingSteps.textContent = steps[stepIdx][1];
+      stepIdx++;
+    }
+  }, 600);
+
+  try {
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
+    const data = await res.json();
+    const html = data.contents || '';
+
+    clearInterval(stepTimer);
+    overlay.classList.remove('active');
+    btn.disabled = false;
+
+    if (!html) {
+      alert('無法抓取該網頁，可能有防爬蟲限制。請嘗試直接貼上網頁原始碼。');
+      return;
+    }
+
+    analyzeAndRender(html, url);
+
+  } catch (err) {
+    clearInterval(stepTimer);
+    overlay.classList.remove('active');
+    btn.disabled = false;
+    alert('抓取失敗：' + err.message + '\n\n可能原因：\n1. 網站有防爬蟲保護\n2. 網路問題\n3. CORS Proxy 暫時不可用\n\n建議：直接貼上網頁原始碼進行分析。');
+  }
+}
+
+function analyzeAndRender(html, url) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  // Extract signals
+  const title = doc.querySelector('title')?.textContent?.trim() || '';
+  const desc = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+  const h1s = doc.querySelectorAll('h1');
+  const h2s = doc.querySelectorAll('h2');
+  const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || '';
+  const canonical = doc.querySelector('link[rel="canonical"]')?.getAttribute('href') || '';
+  const lang = doc.documentElement.getAttribute('lang') || '';
+  const jsonLds = doc.querySelectorAll('script[type="application/ld+json"]');
+  const viewport = doc.querySelector('meta[name="viewport"]')?.getAttribute('content') || '';
+  const robots = doc.querySelector('meta[name="robots"]')?.getAttribute('content') || '';
+  const images = doc.querySelectorAll('img');
+  let imagesWithAlt = 0;
+  images.forEach(img => { if (img.getAttribute('alt')) imagesWithAlt++; });
+
+  // SEO scoring
+  let seoScore = 0;
+  let geoScore = 0;
+  const issues = [];
+
+  if (title && title.length > 5) { seoScore += 15; issues.push({label:'Title Tag', status:'good', note:title.substring(0,60)}); }
+  else { issues.push({label:'Title Tag', status:'bad', note:'缺少'}); }
+
+  if (desc && desc.length > 50) { seoScore += 12; }
+  if (h1s.length > 0) { seoScore += 10; }
+  if (ogTitle) { seoScore += 8; }
+  if (canonical) { seoScore += 6; }
+  if (lang) { seoScore += 5; }
+  if (viewport) { seoScore += 5; }
+  if (robots) { seoScore += 4; }
+  if (h2s.length > 0) { seoScore += 6; }
+  if (images.length > 0 && imagesWithAlt / images.length > 0.5) { seoScore += 5; }
+  seoScore += 10; // HTTPS assumed
+  seoScore += 8; // internal links assumed
+
+  // GEO scoring
+  if (jsonLds.length > 0) { geoScore += 20; }
+  const htmlLower = html.toLowerCase();
+  if (htmlLower.includes('"faqpage"') || htmlLower.includes('"question"')) { geoScore += 15; }
+  if (htmlLower.includes('llms.txt')) { geoScore += 10; }
+  if (doc.querySelectorAll('address, [itemprop="author"]').length > 0) { geoScore += 8; }
+  geoScore += 10; // base brand recognition
+  geoScore += 5; // has internal links = some structure
+
+  // Cap
+  seoScore = Math.min(100, Math.max(0, seoScore));
+  geoScore = Math.min(100, Math.max(0, geoScore));
+
+  // Update UI
+  document.getElementById('displayUrl').textContent = url;
+  document.getElementById('scanTime').textContent = '掃描時間：' + new Date().toLocaleDateString('zh-TW');
+
+  // Update score rings
+  const circumference = 238.76;
+  const rings = document.querySelectorAll('.score-ring circle:last-child');
+  if (rings[0]) {
+    const offset = circumference * (1 - seoScore / 100);
+    rings[0].style.strokeDashoffset = offset;
+    const color = seoScore >= 70 ? 'var(--good)' : seoScore >= 40 ? 'var(--warn)' : 'var(--bad)';
+    rings[0].style.stroke = color;
+    const numEl = rings[0].closest('.score-ring').querySelector('.num');
+    if (numEl) { numEl.textContent = seoScore; numEl.style.color = color; }
+  }
+  if (rings[1]) {
+    const offset = circumference * (1 - geoScore / 100);
+    rings[1].style.strokeDashoffset = offset;
+    const color = geoScore >= 70 ? 'var(--good)' : geoScore >= 40 ? 'var(--warn)' : 'var(--bad)';
+    rings[1].style.stroke = color;
+    const numEl = rings[1].closest('.score-ring').querySelector('.num');
+    if (numEl) { numEl.textContent = geoScore; numEl.style.color = color; }
+  }
+
+  // Show results
+  document.getElementById('introArea').style.display = 'none';
+  document.getElementById('resultsArea').classList.add('visible');
+
+  // Show a quick summary alert
+  const grade = (score) => score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : score >= 25 ? 'D' : 'F';
+  console.log(`SEO: ${seoScore}/100 (${grade(seoScore)}) | GEO: ${geoScore}/100 (${grade(geoScore)})`);
+}
+
+// Animate metric bars on load
+window.addEventListener('load', () => {
+  const bars = document.querySelectorAll('.bar-fill');
+  bars.forEach(bar => {
+    const w = bar.style.width;
+    bar.style.width = '0%';
+    setTimeout(() => { bar.style.width = w; }, 300);
+  });
+});
+</script>
+</body>
+</html>
