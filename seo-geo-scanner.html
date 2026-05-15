@@ -486,6 +486,45 @@
     margin-top: 1px;
   }
 
+  /* Download bar */
+  .download-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .download-bar .dl-label {
+    font-size: 0.82rem;
+    color: var(--text3);
+    margin-right: 4px;
+  }
+  .btn-dl {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    border-radius: 9px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    transition: all 0.18s;
+    text-decoration: none;
+  }
+  .btn-dl.md {
+    background: var(--surface);
+    color: var(--accent2);
+    border-color: rgba(0,201,167,0.3);
+  }
+  .btn-dl.md:hover { background: rgba(0,201,167,0.1); border-color: var(--accent2); }
+  .btn-dl.word {
+    background: var(--surface);
+    color: #7fb3ff;
+    border-color: rgba(127,179,255,0.3);
+  }
+  .btn-dl.word:hover { background: rgba(127,179,255,0.1); border-color: #7fb3ff; }
+
   /* Loading */
   .loading-overlay {
     display: none;
@@ -772,6 +811,13 @@
           <span class="grade-badge" style="background:rgba(255,107,107,0.15);color:var(--bad)">F 級 — 幾乎不可見</span>
         </div>
       </div>
+    </div>
+
+    <!-- Download bar -->
+    <div class="download-bar" id="downloadBar" style="display:none">
+      <span class="dl-label">下載報告：</span>
+      <button class="btn-dl md" onclick="downloadReport('md')">⬇ Markdown (.md)</button>
+      <button class="btn-dl word" onclick="downloadReport('word')">⬇ Word (.doc)</button>
     </div>
 
     <!-- Tabs -->
@@ -1978,10 +2024,361 @@ function analyzeAndRender(html, url) {
 
   document.getElementById('introArea').style.display = 'none';
   document.getElementById('resultsArea').classList.add('visible');
+  document.getElementById('downloadBar').style.display = 'flex';
 
-  // 切換到問題清單 tab
+  // 儲存最新掃描結果供下載使用
+  window._lastScan = { checks, seoScore, geoScore, url,
+    date: new Date().toLocaleDateString('zh-TW') };
+
   switchTab('issues');
+}
 
+// ── 下載報告 ──────────────────────────────────────────
+function downloadReport(fmt) {
+  const s = window._lastScan;
+  if (!s) return;
+  if (fmt === 'md')   triggerDownload(buildMarkdown(s), `seo-geo-report-${Date.now()}.md`, 'text/markdown');
+  if (fmt === 'word') triggerDownload(buildWord(s),     `seo-geo-report-${Date.now()}.doc`, 'application/msword');
+}
+
+function triggerDownload(content, filename, mime) {
+  const blob = new Blob([content], { type: mime + ';charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}
+
+function gradeLabel(score) {
+  return score >= 80 ? 'A（優秀）' : score >= 60 ? 'B（良好）' : score >= 40 ? 'C（待改善）' : score >= 25 ? 'D（急需改善）' : 'F（幾乎不可見）';
+}
+function statusIcon(c) { return c.pass ? '✅' : c.priority === 'high' ? '❌' : '⚠️'; }
+function priorityLabel(c) { return c.pass ? 'PASS' : c.priority === 'high' ? '🔴 HIGH' : c.priority === 'medium' ? '🟡 MED' : '🔵 LOW'; }
+
+// ── Markdown 報告 ──────────────────────────────────────
+function buildMarkdown({ checks, seoScore, geoScore, url, date }) {
+  const seo = checks.filter(c => c.cat === 'SEO');
+  const geo = checks.filter(c => c.cat === 'GEO');
+  const highFails = checks.filter(c => !c.pass && c.priority === 'high');
+  const medFails  = checks.filter(c => !c.pass && c.priority === 'medium');
+  const passes    = checks.filter(c => c.pass);
+
+  const stripHtml = s => s.replace(/<[^>]+>/g, '').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
+
+  const lines = [];
+
+  // ── 標題頁 ──
+  lines.push(`# SEO + GEO 網站分析報告`);
+  lines.push(``);
+  lines.push(`| 項目 | 內容 |`);
+  lines.push(`|------|------|`);
+  lines.push(`| 網站 | ${url} |`);
+  lines.push(`| 掃描日期 | ${date} |`);
+  lines.push(`| SEO 評分 | **${seoScore}/100** — ${gradeLabel(seoScore)} |`);
+  lines.push(`| GEO 評分 | **${geoScore}/100** — ${gradeLabel(geoScore)} |`);
+  lines.push(`| 高優先問題 | ${highFails.length} 項 |`);
+  lines.push(`| 中優先問題 | ${medFails.length} 項 |`);
+  lines.push(`| 通過項目 | ${passes.length} 項 |`);
+  lines.push(`| 分析總項目 | ${checks.length} 項 |`);
+  lines.push(``);
+
+  // ── 執行摘要 ──
+  lines.push(`---`);
+  lines.push(`## 執行摘要`);
+  lines.push(``);
+  lines.push(`### SEO 現況（${seoScore}/100）`);
+  if (seoScore < 40) {
+    lines.push(`SEO 基礎設施嚴重缺失，搜尋引擎難以正確解讀此網站。`);
+    lines.push(`最關鍵問題為：${seo.filter(c=>!c.pass&&c.priority==='high').map(c=>stripHtml(c.label)).join('、') || '無'}。`);
+  } else if (seoScore < 70) {
+    lines.push(`SEO 有基本架構，但仍有多項技術問題待改善，影響搜尋排名潛力。`);
+  } else {
+    lines.push(`SEO 技術基礎良好，建議持續優化內容品質。`);
+  }
+  lines.push(``);
+  lines.push(`### GEO 現況（${geoScore}/100）`);
+  if (geoScore < 40) {
+    lines.push(`網站在 AI 生成引擎（ChatGPT、Perplexity、Google AI Overview 等）中幾乎不可見。`);
+    lines.push(`缺少結構化資料、FAQ、llms.txt 等 AI 引用所需的核心基礎。`);
+  } else if (geoScore < 70) {
+    lines.push(`有基本 GEO 基礎，但 AI 引用機率仍低。建議優先補齊 FAQ 問答與結構化資料。`);
+  } else {
+    lines.push(`GEO 優化良好，AI 引擎引用機率高於平均水準。`);
+  }
+  lines.push(``);
+
+  // ── 立即行動優先清單 ──
+  lines.push(`---`);
+  lines.push(`## 立即行動清單（優先順序）`);
+  lines.push(``);
+  let actionIdx = 1;
+  [...highFails, ...medFails].forEach(c => {
+    lines.push(`### ${actionIdx++}. ${statusIcon(c)} ${stripHtml(c.label)} \`[${c.cat}]\` ${priorityLabel(c)}`);
+    lines.push(``);
+    lines.push(`**問題說明：** ${stripHtml(c.detail)}`);
+    lines.push(``);
+    lines.push(`**修復建議：** ${stripHtml(c.fix)}`);
+    lines.push(``);
+  });
+
+  // ── SEO 完整分析 ──
+  lines.push(`---`);
+  lines.push(`## SEO 技術分析（${seo.filter(c=>c.pass).length}/${seo.length} 通過）`);
+  lines.push(``);
+
+  const seoHigh = seo.filter(c=>!c.pass&&c.priority==='high');
+  const seoMed  = seo.filter(c=>!c.pass&&c.priority!=='high');
+  const seoPass = seo.filter(c=>c.pass);
+
+  if (seoHigh.length) {
+    lines.push(`### 🔴 高優先問題`);
+    lines.push(``);
+    seoHigh.forEach(c => {
+      lines.push(`#### ${c.label}`);
+      lines.push(`- **狀態：** ❌ 未通過`);
+      lines.push(`- **偵測結果：** ${stripHtml(c.detail)}`);
+      lines.push(`- **影響：** 對搜尋排名與點擊率有直接負面影響，建議優先修復`);
+      lines.push(`- **修復建議：**`);
+      lines.push(`  > ${stripHtml(c.fix)}`);
+      lines.push(``);
+    });
+  }
+
+  if (seoMed.length) {
+    lines.push(`### 🟡 中優先問題`);
+    lines.push(``);
+    seoMed.forEach(c => {
+      lines.push(`#### ${c.label}`);
+      lines.push(`- **狀態：** ⚠️ 待改善`);
+      lines.push(`- **偵測結果：** ${stripHtml(c.detail)}`);
+      lines.push(`- **修復建議：**`);
+      lines.push(`  > ${stripHtml(c.fix)}`);
+      lines.push(``);
+    });
+  }
+
+  if (seoPass.length) {
+    lines.push(`### ✅ 通過項目`);
+    lines.push(``);
+    seoPass.forEach(c => {
+      lines.push(`- ✅ **${c.label}**：${stripHtml(c.detail)}`);
+    });
+    lines.push(``);
+  }
+
+  // ── GEO 完整分析 ──
+  lines.push(`---`);
+  lines.push(`## GEO 生成引擎分析（${geo.filter(c=>c.pass).length}/${geo.length} 通過）`);
+  lines.push(``);
+  lines.push(`> GEO（Generative Engine Optimization）是針對 ChatGPT、Perplexity、Google AI Overview、Claude 等`);
+  lines.push(`> AI 生成引擎的優化策略。目標是讓網站內容被 AI 引用、推薦或作為答案來源。`);
+  lines.push(``);
+
+  const geoHigh = geo.filter(c=>!c.pass&&c.priority==='high');
+  const geoMed  = geo.filter(c=>!c.pass&&c.priority!=='high');
+  const geoPass = geo.filter(c=>c.pass);
+
+  if (geoHigh.length) {
+    lines.push(`### 🔴 高優先問題`);
+    lines.push(``);
+    geoHigh.forEach(c => {
+      lines.push(`#### ${c.label}`);
+      lines.push(`- **狀態：** ❌ 未通過`);
+      lines.push(`- **偵測結果：** ${stripHtml(c.detail)}`);
+      lines.push(`- **影響：** AI 引擎無法識別或引用此頁面，導致 AI 搜尋中完全不可見`);
+      lines.push(`- **修復建議：**`);
+      lines.push(`  > ${stripHtml(c.fix)}`);
+      lines.push(``);
+    });
+  }
+
+  if (geoMed.length) {
+    lines.push(`### 🟡 中優先問題`);
+    lines.push(``);
+    geoMed.forEach(c => {
+      lines.push(`#### ${c.label}`);
+      lines.push(`- **狀態：** ⚠️ 待改善`);
+      lines.push(`- **偵測結果：** ${stripHtml(c.detail)}`);
+      lines.push(`- **修復建議：**`);
+      lines.push(`  > ${stripHtml(c.fix)}`);
+      lines.push(``);
+    });
+  }
+
+  if (geoPass.length) {
+    lines.push(`### ✅ 通過項目`);
+    lines.push(``);
+    geoPass.forEach(c => {
+      lines.push(`- ✅ **${c.label}**：${stripHtml(c.detail)}`);
+    });
+    lines.push(``);
+  }
+
+  // ── 技術參考 ──
+  lines.push(`---`);
+  lines.push(`## 評分標準參考（2025 年）`);
+  lines.push(``);
+  lines.push(`| 指標 | 通過條件 | 說明 |`);
+  lines.push(`|------|----------|------|`);
+  lines.push(`| Title 長度 | 有效字元 50–120 | 中文約 25–55 字，英文 50–65 字元 |`);
+  lines.push(`| Meta Description | 有效字元 120–320 | 中文約 60–150 字 |`);
+  lines.push(`| H1 數量 | 恰好 1 個 | 多個 H1 也視為問題 |`);
+  lines.push(`| Open Graph | 4 必要欄位齊全 | og:title、og:type、og:url、og:image |`);
+  lines.push(`| Canonical | 絕對 URL | 必須以 http 開頭，不可相對路徑 |`);
+  lines.push(`| 圖片 Alt | ≥ 90% 覆蓋率 | 有意義的描述，非空白 |`);
+  lines.push(`| H2 結構 | ≥ 2 個 H2 | 標題需包含目標關鍵字 |`);
+  lines.push(`| FAQPage | ≥ 3 題 | 問答需在頁面可見，AI 引用率 +47% |`);
+  lines.push(`| sameAs | ≥ 3 個社群平台 | 在 Organization Schema 中設定 |`);
+  lines.push(`| AI Bot 設定 | GPTBot / ClaudeBot / PerplexityBot | 在 robots.txt 中明確列出 |`);
+  lines.push(``);
+  lines.push(`---`);
+  lines.push(`*報告由 [SEO + GEO 智能掃描工具](https://miachan02090825.github.io/seo-geo-scanner/) 自動生成*`);
+
+  return lines.join('\n');
+}
+
+// ── Word (.doc HTML 格式) ──────────────────────────────
+function buildWord({ checks, seoScore, geoScore, url, date }) {
+  const seo = checks.filter(c => c.cat === 'SEO');
+  const geo = checks.filter(c => c.cat === 'GEO');
+  const highFails = checks.filter(c => !c.pass && c.priority === 'high');
+  const medFails  = checks.filter(c => !c.pass && c.priority === 'medium');
+  const passes    = checks.filter(c => c.pass);
+  const stripHtml = s => s.replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
+
+  const scoreColor = s => s >= 70 ? '#00875a' : s >= 40 ? '#b37d00' : '#b30000';
+  const priColor   = p => p === 'high' ? '#b30000' : p === 'medium' ? '#b37d00' : '#0052cc';
+  const priText    = p => p === 'high' ? '🔴 高優先' : p === 'medium' ? '🟡 中優先' : '🔵 低優先';
+
+  function issueBlock(c) {
+    const icon = c.pass ? '✅' : c.priority === 'high' ? '❌' : '⚠️';
+    const bg   = c.pass ? '#f0fff8' : c.priority === 'high' ? '#fff5f5' : '#fffbeb';
+    const bd   = c.pass ? '#00875a' : c.priority === 'high' ? '#b30000' : '#b37d00';
+    return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:14px;border-left:4px solid ${bd};background:${bg};border-radius:4px">
+      <tr><td style="padding:12px 16px">
+        <p style="margin:0 0 4px;font-size:13pt;font-weight:bold;color:#1a1a2e">
+          ${icon} ${stripHtml(c.label)}
+          <span style="float:right;font-size:9pt;color:${c.pass?'#00875a':priColor(c.priority)};font-weight:bold">
+            ${c.pass ? 'PASS' : priText(c.priority)} &nbsp;|&nbsp; ${c.cat}
+          </span>
+        </p>
+        <p style="margin:6px 0 4px;font-size:10.5pt;color:#333"><b>偵測結果：</b>${stripHtml(c.detail)}</p>
+        ${!c.pass ? `<p style="margin:6px 0 0;font-size:10.5pt;background:#fff;padding:8px 12px;border-radius:4px;border:1px solid ${bd}30"><b>修復建議：</b> ${stripHtml(c.fix)}</p>` : ''}
+      </td></tr>
+    </table>`;
+  }
+
+  function section(title, color, items) {
+    if (!items.length) return '';
+    return `<h3 style="margin:20px 0 10px;font-size:12pt;color:${color};border-bottom:1px solid ${color}40;padding-bottom:4px">${title}</h3>
+    ${items.map(issueBlock).join('')}`;
+  }
+
+  const html = `
+<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="UTF-8">
+<meta name=ProgId content=Word.Document>
+<meta name=Generator content="Microsoft Word">
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->
+<style>
+  body { font-family: "微軟正黑體","Noto Sans TC",Arial,sans-serif; font-size:11pt; color:#1a1a2e; margin:40px 60px; line-height:1.7; }
+  h1 { font-size:20pt; color:#6c63ff; border-bottom:3px solid #6c63ff; padding-bottom:8px; margin-bottom:6px; }
+  h2 { font-size:15pt; color:#1a1a2e; background:#f0f0ff; padding:8px 14px; border-left:4px solid #6c63ff; margin-top:28px; }
+  h3 { font-size:12pt; }
+  table { border-collapse:collapse; width:100%; }
+  .score-box { display:inline-block; padding:8px 20px; border-radius:8px; font-size:22pt; font-weight:bold; }
+  p { margin:4px 0 8px; }
+</style>
+</head>
+<body>
+
+<h1>SEO + GEO 網站分析報告</h1>
+<p style="color:#666;font-size:10pt">掃描工具：SEO + GEO 智能掃描工具 &nbsp;|&nbsp; 生成日期：${date}</p>
+
+<table style="margin:20px 0;background:#f8f8ff;padding:16px;border-radius:8px;border:1px solid #ddd">
+  <tr>
+    <td style="padding:8px 24px;text-align:center;border-right:1px solid #ddd">
+      <div style="font-size:9pt;color:#666;margin-bottom:4px">掃描網址</div>
+      <div style="font-size:10.5pt;font-weight:bold;color:#6c63ff">${url}</div>
+    </td>
+    <td style="padding:8px 24px;text-align:center;border-right:1px solid #ddd">
+      <div style="font-size:9pt;color:#666;margin-bottom:4px">SEO 評分</div>
+      <div class="score-box" style="color:${scoreColor(seoScore)}">${seoScore}<span style="font-size:12pt">/100</span></div>
+      <div style="font-size:9pt;color:${scoreColor(seoScore)}">${gradeLabel(seoScore)}</div>
+    </td>
+    <td style="padding:8px 24px;text-align:center;border-right:1px solid #ddd">
+      <div style="font-size:9pt;color:#666;margin-bottom:4px">GEO 評分</div>
+      <div class="score-box" style="color:${scoreColor(geoScore)}">${geoScore}<span style="font-size:12pt">/100</span></div>
+      <div style="font-size:9pt;color:${scoreColor(geoScore)}">${gradeLabel(geoScore)}</div>
+    </td>
+    <td style="padding:8px 24px;text-align:center">
+      <div style="font-size:9pt;color:#666;margin-bottom:8px">問題統計</div>
+      <div style="font-size:10pt">❌ <b>${highFails.length}</b> 高優先 &nbsp; ⚠️ <b>${medFails.length}</b> 中優先 &nbsp; ✅ <b>${passes.length}</b> 通過</div>
+    </td>
+  </tr>
+</table>
+
+<h2>執行摘要</h2>
+<p><b>SEO：</b>${seoScore < 40 ? `基礎設施嚴重缺失，搜尋引擎難以正確解讀。最關鍵問題：${seo.filter(c=>!c.pass&&c.priority==='high').map(c=>stripHtml(c.label)).join('、')||'（無）'}。` : seoScore < 70 ? '有基本架構，但仍有多項技術問題待改善，影響搜尋排名潛力。' : 'SEO 技術基礎良好，建議持續優化內容品質。'}</p>
+<p><b>GEO：</b>${geoScore < 40 ? '網站在 AI 生成引擎（ChatGPT、Perplexity、Google AI Overview 等）中幾乎不可見。缺少結構化資料、FAQ、llms.txt 等核心基礎。' : geoScore < 70 ? '有基本 GEO 基礎，但 AI 引用機率仍低。建議優先補齊 FAQ 問答與結構化資料。' : 'GEO 優化良好，AI 引擎引用機率高於平均水準。'}</p>
+
+<h2>立即行動清單（依優先順序）</h2>
+${[...highFails,...medFails].map((c,i)=>`
+  <p style="font-size:10pt;color:#666;margin:0 0 4px">${i+1} / ${highFails.length+medFails.length}</p>
+  ${issueBlock(c)}`).join('')}
+
+<h2>SEO 完整分析（${seo.filter(c=>c.pass).length}/${seo.length} 通過）</h2>
+${section('🔴 高優先問題', '#b30000', seo.filter(c=>!c.pass&&c.priority==='high'))}
+${section('🟡 中優先問題', '#b37d00', seo.filter(c=>!c.pass&&c.priority==='medium'))}
+${section('🔵 低優先問題', '#0052cc', seo.filter(c=>!c.pass&&c.priority==='low'))}
+${section('✅ 通過項目', '#00875a', seo.filter(c=>c.pass))}
+
+<h2>GEO 生成引擎分析（${geo.filter(c=>c.pass).length}/${geo.length} 通過）</h2>
+<p style="background:#f0f0ff;padding:10px 14px;border-radius:6px;font-size:10pt;color:#444">
+GEO（Generative Engine Optimization）是針對 ChatGPT、Perplexity、Google AI Overview、Claude 等 AI 生成引擎的優化策略。目標是讓網站內容被 AI 引用、推薦或作為答案來源。
+</p>
+${section('🔴 高優先問題', '#b30000', geo.filter(c=>!c.pass&&c.priority==='high'))}
+${section('🟡 中優先問題', '#b37d00', geo.filter(c=>!c.pass&&c.priority==='medium'))}
+${section('🔵 低優先問題', '#0052cc', geo.filter(c=>!c.pass&&c.priority==='low'))}
+${section('✅ 通過項目', '#00875a', geo.filter(c=>c.pass))}
+
+<h2>評分標準參考（2025 年）</h2>
+<table style="border-collapse:collapse;width:100%;font-size:10pt">
+  <tr style="background:#6c63ff;color:#fff">
+    <th style="padding:8px 12px;text-align:left">指標</th>
+    <th style="padding:8px 12px;text-align:left">通過條件</th>
+    <th style="padding:8px 12px;text-align:left">說明</th>
+  </tr>
+  ${[
+    ['Title 長度','有效字元 50–120','中文約 25–55 字，英文 50–65 字元'],
+    ['Meta Description','有效字元 120–320','中文約 60–150 字'],
+    ['H1 數量','恰好 1 個','多個 H1 也視為問題'],
+    ['Open Graph','4 必要欄位齊全','og:title、og:type、og:url、og:image'],
+    ['Canonical','絕對 URL（http 開頭）','不可使用相對路徑'],
+    ['圖片 Alt','≥ 90% 覆蓋率','有意義描述，非空白'],
+    ['H2 結構','≥ 2 個 H2','標題需包含目標關鍵字'],
+    ['FAQPage','≥ 3 題','問答需在頁面可見，AI 引用率 +47%'],
+    ['sameAs','≥ 3 個社群平台','在 Organization Schema 中設定'],
+    ['AI Bot 設定','明確列出 bot 名稱','GPTBot、ClaudeBot、PerplexityBot、Google-Extended'],
+  ].map((r,i)=>`<tr style="background:${i%2?'#f8f8ff':'#fff'}">
+    <td style="padding:7px 12px;border:1px solid #ddd"><b>${r[0]}</b></td>
+    <td style="padding:7px 12px;border:1px solid #ddd;color:#0052cc">${r[1]}</td>
+    <td style="padding:7px 12px;border:1px solid #ddd;color:#555">${r[2]}</td>
+  </tr>`).join('')}
+</table>
+
+<p style="margin-top:32px;font-size:9pt;color:#999;text-align:center;border-top:1px solid #eee;padding-top:12px">
+報告由 SEO + GEO 智能掃描工具自動生成 &nbsp;|&nbsp; ${date}
+</p>
+
+</body></html>`;
+  return html;
 }
 
 // Animate metric bars on load
