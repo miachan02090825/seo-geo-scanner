@@ -671,7 +671,8 @@
 <div class="loading-overlay" id="loadingOverlay">
   <div class="spinner"></div>
   <div class="loading-text" id="loadingText">正在抓取網頁...</div>
-  <div class="loading-steps" id="loadingSteps">透過 CORS Proxy 取得 HTML 原始碼</div>
+  <div class="loading-steps" id="loadingSteps">透過連線取得 HTML 原始碼</div>
+  <button onclick="cancelScan()" style="margin-top:8px;background:none;border:1px solid #444;color:#888;padding:6px 20px;border-radius:8px;cursor:pointer;font-size:0.82rem">取消</button>
 </div>
 
 <div class="container">
@@ -814,7 +815,7 @@
     </div>
 
     <!-- Download bar -->
-    <div class="download-bar" id="downloadBar" style="display:none">
+    <div class="download-bar" id="downloadBar">
       <span class="dl-label">下載報告：</span>
       <button class="btn-dl md" onclick="downloadReport('md')">⬇ Markdown (.md)</button>
       <button class="btn-dl word" onclick="downloadReport('word')">⬇ Word (.doc)</button>
@@ -1468,52 +1469,69 @@ function toggleSection(header) {
   if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
 }
 
-// Scan website function
+// 全域取消控制器
+let _scanController = null;
+
+function cancelScan() {
+  if (_scanController) { _scanController.abort(); _scanController = null; }
+}
+
 async function scanWebsite() {
   const url = document.getElementById('urlInput').value.trim();
   if (!url) { showError('⚠ 請輸入要掃描的網址'); return; }
 
-  const overlay = document.getElementById('loadingOverlay');
-  const loadingText = document.getElementById('loadingText');
+  // 若上一次還在跑，先取消它
+  cancelScan();
+  _scanController = new AbortController();
+  const outerSignal = _scanController.signal;
+
+  const overlay   = document.getElementById('loadingOverlay');
+  const loadingText  = document.getElementById('loadingText');
   const loadingSteps = document.getElementById('loadingSteps');
-  const btn = document.querySelector('.btn-scan');
+  const btn = document.querySelector('#panelUrl .btn-scan');
 
   overlay.classList.add('active');
   btn.disabled = true;
+  hideError();
 
   const steps = [
-    ['正在抓取網頁...', '透過 CORS Proxy 取得 HTML 原始碼'],
+    ['正在抓取網頁...', '透過連線取得 HTML 原始碼'],
     ['解析 Meta Tags...', '檢查 title、description、OG、Twitter Card'],
     ['分析標題結構...', '檢查 H1-H6 層級與關鍵字'],
     ['掃描結構化資料...', '尋找 JSON-LD / Schema.org 標記'],
     ['評估 GEO 指標...', '檢查 FAQ、llms.txt、E-E-A-T 信號'],
     ['計算評分...', '綜合 SEO + GEO 30+ 項指標'],
   ];
-
   let stepIdx = 0;
   const stepTimer = setInterval(() => {
     if (stepIdx < steps.length) {
-      loadingText.textContent = steps[stepIdx][0];
+      loadingText.textContent  = steps[stepIdx][0];
       loadingSteps.textContent = steps[stepIdx][1];
       stepIdx++;
     }
-  }, 600);
+  }, 700);
 
-  // 多 proxy 輪流嘗試
+  // 加上 cache-bust 時間戳，防止 proxy 回傳舊暫存
+  const cb = `_cb=${Date.now()}`;
+
   const proxies = [
     async (u) => {
-      const r = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(u)}`, { signal: AbortSignal.timeout(20000) });
-      if (!r.ok) throw new Error('corsproxy non-200');
+      const r = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(u)}&${cb}`,
+        { signal: AbortSignal.any ? AbortSignal.any([outerSignal, AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000) });
+      if (!r.ok) throw new Error(`corsproxy ${r.status}`);
       return r.text();
     },
     async (u) => {
-      const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, { signal: AbortSignal.timeout(20000) });
+      const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}&${cb}`,
+        { signal: AbortSignal.any ? AbortSignal.any([outerSignal, AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000) });
       const d = await r.json();
-      return d.contents || '';
+      if (!d.contents) throw new Error('allorigins empty');
+      return d.contents;
     },
     async (u) => {
-      const r = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`, { signal: AbortSignal.timeout(20000) });
-      if (!r.ok) throw new Error('codetabs non-200');
+      const r = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}&${cb}`,
+        { signal: AbortSignal.any ? AbortSignal.any([outerSignal, AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000) });
+      if (!r.ok) throw new Error(`codetabs ${r.status}`);
       return r.text();
     },
   ];
@@ -1521,28 +1539,34 @@ async function scanWebsite() {
   try {
     let html = '';
     let lastErr = null;
-    for (const proxy of proxies) {
+    for (let i = 0; i < proxies.length; i++) {
+      if (outerSignal.aborted) break;
       try {
         const tryMsgs = ['正在連線取得網頁內容...', '切換備用線路重試...', '最後一次嘗試...'];
-        loadingSteps.textContent = tryMsgs[proxies.indexOf(proxy)] || '連線中...';
-        html = await proxy(url);
+        loadingSteps.textContent = tryMsgs[i] || '連線中...';
+        html = await proxies[i](url);
         if (html && html.length > 100) break;
-      } catch (e) { lastErr = e; }
+      } catch (e) {
+        if (e.name === 'AbortError' && outerSignal.aborted) break; // 使用者主動取消
+        lastErr = e;
+      }
     }
-    if (!html || html.length < 100) throw lastErr || new Error('所有 Proxy 均無回應');
+    if (outerSignal.aborted) return; // 取消後靜默退出
+    if (!html || html.length < 100) throw lastErr || new Error('所有線路均無回應');
 
     clearInterval(stepTimer);
-    overlay.classList.remove('active');
-    btn.disabled = false;
     hideError();
-
     analyzeAndRender(html, url);
 
   } catch (err) {
+    if (err.name !== 'AbortError') {
+      showError('⚠ 抓取失敗：網站可能有防爬蟲保護，或網路連線問題。建議切換到「📋 貼上原始碼」模式。');
+    }
+  } finally {
     clearInterval(stepTimer);
     overlay.classList.remove('active');
     btn.disabled = false;
-    showError('⚠ 抓取失敗：' + (err.message || '連線逾時') + '。可能原因：網站有防爬蟲保護、網路問題、或 CORS Proxy 暫時不可用。建議切換到「📋 貼上原始碼」模式。');
+    _scanController = null;
   }
 }
 
@@ -2035,8 +2059,29 @@ function analyzeAndRender(html, url) {
 
 // ── 下載報告 ──────────────────────────────────────────
 function downloadReport(fmt) {
+  // 若沒有掃描資料，從 DOM 重建靜態報告
+  if (!window._lastScan) {
+    const checks = [];
+    document.querySelectorAll('.issue-item').forEach(el => {
+      const pass = el.classList.contains('good');
+      const bad  = el.classList.contains('bad');
+      const label = el.querySelector('.issue-title')?.textContent?.replace(/\[SEO\]|\[GEO\]/g,'').trim() || '';
+      const detail= el.querySelector('.issue-desc')?.textContent?.trim() || '';
+      const fix   = el.querySelector('.issue-fix')?.textContent?.replace('✦ 修復建議：','').trim() || '';
+      const cat   = el.querySelector('.tag')?.textContent?.trim() || 'SEO';
+      const priEl = el.querySelector('.priority-tag');
+      const pri   = priEl?.classList.contains('high') ? 'high' : priEl?.classList.contains('medium') ? 'medium' : 'low';
+      if (label) checks.push({ pass, priority: pass ? 'low' : pri, cat, label, detail, fix });
+    });
+    const seoNum = parseInt(document.querySelector('.score-ring .num')?.textContent) || 0;
+    const geoNum = parseInt(document.querySelectorAll('.score-ring .num')[1]?.textContent) || 0;
+    window._lastScan = {
+      checks, seoScore: seoNum, geoScore: geoNum,
+      url: document.getElementById('displayUrl')?.textContent || '（預覽報告）',
+      date: document.getElementById('scanTime')?.textContent?.replace('掃描時間：','') || new Date().toLocaleDateString('zh-TW')
+    };
+  }
   const s = window._lastScan;
-  if (!s) return;
   if (fmt === 'md')   triggerDownload(buildMarkdown(s), `seo-geo-report-${Date.now()}.md`, 'text/markdown');
   if (fmt === 'word') triggerDownload(buildWord(s),     `seo-geo-report-${Date.now()}.doc`, 'application/msword');
 }
