@@ -1477,7 +1477,8 @@ async function scanWebsite() {
     let lastErr = null;
     for (const proxy of proxies) {
       try {
-        loadingSteps.textContent = `嘗試 Proxy ${proxies.indexOf(proxy) + 1} / ${proxies.length}...`;
+        const tryMsgs = ['正在連線取得網頁內容...', '切換備用線路重試...', '最後一次嘗試...'];
+        loadingSteps.textContent = tryMsgs[proxies.indexOf(proxy)] || '連線中...';
         html = await proxy(url);
         if (html && html.length > 100) break;
       } catch (e) { lastErr = e; }
