@@ -1510,135 +1510,378 @@ function analyzeAndRender(html, url) {
   const doc = parser.parseFromString(fullHtml, 'text/html');
   const rawLower = html.toLowerCase();
 
+  // ── CJK 有效字元長度（中文字算 2，英文算 1）─────────────
+  function effLen(s) { return [...(s||'')].reduce((n,c)=>n+(c.charCodeAt(0)>127?2:1),0); }
+
   // ── 擷取所有信號 ──────────────────────────────────────
-  const title        = doc.querySelector('title')?.textContent?.trim() || '';
-  const desc         = doc.querySelector('meta[name="description"]')?.getAttribute('content')?.trim() || '';
-  const h1s          = doc.querySelectorAll('h1');
-  const h2s          = doc.querySelectorAll('h2');
-  const h3s          = doc.querySelectorAll('h3');
-  const ogTitle      = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || '';
-  const ogDesc       = doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || '';
-  const ogImage      = doc.querySelector('meta[property="og:image"]')?.getAttribute('content') || '';
-  const twitterCard  = doc.querySelector('meta[name="twitter:card"]')?.getAttribute('content') || '';
-  const canonical    = doc.querySelector('link[rel="canonical"]')?.getAttribute('href') || '';
-  const lang         = doc.documentElement.getAttribute('lang') || '';
-  const viewport     = doc.querySelector('meta[name="viewport"]')?.getAttribute('content') || '';
-  const robots       = doc.querySelector('meta[name="robots"]')?.getAttribute('content') || '';
-  const jsonLds      = doc.querySelectorAll('script[type="application/ld+json"]');
-  const images       = doc.querySelectorAll('img');
-  const links        = doc.querySelectorAll('a[href]');
-  const hasFaq       = rawLower.includes('"faqpage"') || rawLower.includes('"question"') ||
-                       !!doc.querySelector('[itemtype*="FAQPage"]');
-  const hasOrg       = rawLower.includes('"organization"') || rawLower.includes('"corporation"');
-  const hasLlms      = rawLower.includes('llms.txt');
-  const hasAuthor    = !!doc.querySelector('address,[itemprop="author"],[rel="author"]') ||
-                       rawLower.includes('"author"');
-  const isHttps      = url.startsWith('https://') || url === '（貼上原始碼）';
-  const imagesWithAlt = [...images].filter(i => (i.getAttribute('alt') || '').trim().length > 0).length;
-  const altRatio      = images.length > 0 ? imagesWithAlt / images.length : 1;
+  const title       = doc.querySelector('title')?.textContent?.trim() || '';
+  const desc        = doc.querySelector('meta[name="description"]')?.getAttribute('content')?.trim() || '';
+  const h1s         = doc.querySelectorAll('h1');
+  const h2s         = doc.querySelectorAll('h2');
+  const h3s         = doc.querySelectorAll('h3');
+  const h4s         = doc.querySelectorAll('h4');
+  const ogTitle     = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || '';
+  const ogDesc      = doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || '';
+  const ogImage     = doc.querySelector('meta[property="og:image"]')?.getAttribute('content') || '';
+  const ogUrl       = doc.querySelector('meta[property="og:url"]')?.getAttribute('content') || '';
+  const ogType      = doc.querySelector('meta[property="og:type"]')?.getAttribute('content') || '';
+  const twitterCard = doc.querySelector('meta[name="twitter:card"]')?.getAttribute('content') || '';
+  const canonical   = doc.querySelector('link[rel="canonical"]')?.getAttribute('href') || '';
+  const lang        = doc.documentElement.getAttribute('lang') || '';
+  const viewport    = doc.querySelector('meta[name="viewport"]')?.getAttribute('content') || '';
+  const robots      = doc.querySelector('meta[name="robots"]')?.getAttribute('content') || '';
+  const charset     = doc.querySelector('meta[charset]') || doc.querySelector('meta[http-equiv="Content-Type"]');
+  const favicon     = doc.querySelector('link[rel*="icon"]');
+  const jsonLds     = doc.querySelectorAll('script[type="application/ld+json"]');
+  const images      = doc.querySelectorAll('img');
+  const links       = doc.querySelectorAll('a[href]');
+  const isHttps     = url.startsWith('https://') || url === '（貼上原始碼）';
+
+  // 解析所有 JSON-LD
+  const schemas = [];
+  jsonLds.forEach(s => {
+    try {
+      const d = JSON.parse(s.textContent);
+      const items = Array.isArray(d) ? d : (d['@graph'] ? d['@graph'] : [d]);
+      items.forEach(i => schemas.push(i));
+    } catch(e) {}
+  });
+  const schemaTypes = schemas.map(s => (s['@type']||'').toLowerCase());
+  const hasOrg         = schemaTypes.some(t => t.includes('organization') || t.includes('corporation') || t.includes('localbusiness'));
+  const hasWebSite     = schemaTypes.some(t => t === 'website');
+  const hasBreadcrumb  = schemaTypes.some(t => t.includes('breadcrumb'));
+  const hasArticle     = schemaTypes.some(t => t.includes('article') || t.includes('blogposting') || t.includes('newsarticle'));
+  const hasDate        = rawLower.includes('datepublished') || rawLower.includes('datemodified');
+
+  // FAQ：至少 3 題
+  let faqCount = 0;
+  schemas.filter(s=>(s['@type']||'').toLowerCase().includes('faqpage')).forEach(s=>{
+    faqCount += Array.isArray(s.mainEntity) ? s.mainEntity.length : (s.mainEntity ? 1 : 0);
+  });
+  if (faqCount === 0) faqCount = (rawLower.match(/"@type"\s*:\s*"question"/gi)||[]).length;
+  const hasFaq = faqCount >= 3;
+
+  // Organization sameAs 計數
+  let sameAsCount = 0;
+  schemas.forEach(s => {
+    if (s.sameAs) sameAsCount += Array.isArray(s.sameAs) ? s.sameAs.length : 1;
+  });
+
+  // AI Bot 名稱是否出現在頁面原始碼
+  const hasAiBots = rawLower.includes('gptbot') || rawLower.includes('claudebot') || rawLower.includes('perplexitybot') || rawLower.includes('google-extended');
+
+  // llms.txt
+  const hasLlms = rawLower.includes('llms.txt');
+
+  // E-E-A-T 信號
+  const hasAuthor = !!doc.querySelector('address,[itemprop="author"],[rel="author"],[class*="author"],[class*="byline"]')
+                    || schemas.some(s=>s.author || s.creator);
+
+  // 圖片 alt 覆蓋率
+  const imagesWithAlt = [...images].filter(i => (i.getAttribute('alt') || '').trim().length > 2).length;
+  const altRatio = images.length > 0 ? imagesWithAlt / images.length : 1;
+
+  // 內部連結
+  let hostname = '';
+  try { hostname = new URL(url).hostname; } catch(e) {}
   const internalLinks = [...links].filter(a => {
     const h = a.getAttribute('href') || '';
-    return h.startsWith('/') || h.startsWith('#') || (url !== '（貼上原始碼）' && h.includes(new URL(url).hostname));
+    return h.startsWith('/') || h.startsWith('#') || (hostname && h.includes(hostname));
   }).length;
 
-  // ── 評分（固定規則，相同 HTML 永遠相同分數）────────────
-  const SEO = [
-    { pts: 15, pass: title.length > 5 },
-    { pts: 12, pass: desc.length > 50 },
-    { pts: 10, pass: h1s.length > 0 },
-    { pts:  8, pass: !!ogTitle },
-    { pts:  5, pass: !!ogImage },
-    { pts:  6, pass: !!canonical },
-    { pts:  5, pass: !!lang },
-    { pts:  5, pass: !!viewport },
-    { pts:  4, pass: !!robots },
-    { pts:  6, pass: h2s.length > 0 },
-    { pts:  5, pass: altRatio >= 0.8 },
-    { pts:  5, pass: isHttps },
-    { pts:  4, pass: internalLinks >= 3 },
-    { pts:  3, pass: !!twitterCard },
+  // 頁面文字量（估算）
+  const bodyText = (doc.body?.textContent || '').replace(/\s+/g,' ').trim();
+  const charCount = bodyText.length;
+
+  // Heading 跳層偵測
+  const headingOrder = [...doc.querySelectorAll('h1,h2,h3,h4,h5,h6')]
+    .map(h => parseInt(h.tagName[1]));
+  let hasHeadingSkip = false;
+  for (let i=1;i<headingOrder.length;i++) {
+    if (headingOrder[i] - headingOrder[i-1] > 1) { hasHeadingSkip = true; break; }
+  }
+
+  // ── 有效長度計算 ──
+  const titleEff = effLen(title);
+  const descEff  = effLen(desc);
+
+  // ── OG 完整性（4 必要欄位）──
+  const ogComplete = !!ogTitle && !!ogImage && !!ogUrl && !!ogType;
+
+  // ── 評分（固定規則）──────────────────────────────────
+  const SEO_RULES = [
+    { pts: 15, pass: titleEff >= 50 && titleEff <= 120 },   // 標題長度合適（中文 25-55 字 / 英文 50-65 字元）
+    { pts: 12, pass: descEff >= 120 && descEff <= 320 },    // 描述長度合適（中文 60-150 字）
+    { pts: 10, pass: h1s.length === 1 },                    // 恰好 1 個 H1
+    { pts:  8, pass: ogComplete },                          // OG 4 必要欄位齊全
+    { pts:  6, pass: !!canonical && canonical.startsWith('http') }, // Canonical 為絕對 URL
+    { pts:  5, pass: !!lang },                              // lang 屬性
+    { pts:  5, pass: !!viewport },                          // Viewport
+    { pts:  4, pass: !!robots },                            // Robots meta
+    { pts:  6, pass: h2s.length >= 2 },                     // 至少 2 個 H2
+    { pts:  5, pass: altRatio >= 0.9 },                     // 90% 以上圖片有 alt
+    { pts:  5, pass: isHttps },                             // HTTPS
+    { pts:  4, pass: internalLinks >= 3 },                  // 內部連結
+    { pts:  3, pass: !!twitterCard },                       // Twitter Card
+    { pts:  3, pass: !hasHeadingSkip },                     // 無標題跳層
+    { pts:  3, pass: !!charset },                           // charset 宣告
+    { pts:  2, pass: !!favicon },                           // Favicon
+    { pts:  4, pass: charCount >= 300 },                    // 頁面有足夠文字
   ];
-  const GEO = [
-    { pts: 20, pass: jsonLds.length > 0 },
-    { pts: 15, pass: hasFaq },
-    { pts: 12, pass: hasOrg },
-    { pts: 10, pass: hasLlms },
-    { pts:  8, pass: hasAuthor },
-    { pts:  8, pass: h1s.length > 0 && desc.length > 80 },
-    { pts:  7, pass: images.length > 0 && altRatio >= 0.8 },
-    { pts:  5, pass: internalLinks >= 3 },
-    { pts:  5, pass: !!lang },
-    { pts:  5, pass: !!canonical },
-    { pts:  5, pass: title.length > 10 },
+  const GEO_RULES = [
+    { pts: 18, pass: jsonLds.length > 0 },                  // 有 JSON-LD 結構化資料
+    { pts: 14, pass: hasFaq },                              // FAQPage（≥3 題）
+    { pts: 12, pass: hasOrg },                              // Organization Schema
+    { pts: 10, pass: hasLlms },                             // llms.txt
+    { pts:  9, pass: hasAuthor },                           // E-E-A-T 作者/機構信號
+    { pts:  8, pass: hasWebSite },                          // WebSite Schema
+    { pts:  7, pass: sameAsCount >= 3 },                    // sameAs ≥3 個社群平台
+    { pts:  6, pass: hasDate },                             // datePublished / dateModified
+    { pts:  5, pass: hasBreadcrumb },                       // BreadcrumbList Schema
+    { pts:  5, pass: hasAiBots },                           // robots.txt / 頁面中有 AI bot 名稱
+    { pts:  4, pass: hasArticle },                          // Article / BlogPosting Schema
+    { pts:  2, pass: h1s.length === 1 && descEff >= 120 },  // 直接回答格式（H1+詳細描述）
   ];
 
-  const seoScore = Math.min(100, SEO.filter(r=>r.pass).reduce((s,r)=>s+r.pts, 0));
-  const geoScore = Math.min(100, GEO.filter(r=>r.pass).reduce((s,r)=>s+r.pts, 0));
+  const seoScore = Math.min(100, SEO_RULES.filter(r=>r.pass).reduce((s,r)=>s+r.pts, 0));
+  const geoScore = Math.min(100, GEO_RULES.filter(r=>r.pass).reduce((s,r)=>s+r.pts, 0));
 
-  // ── 建立問題清單資料 ──────────────────────────────────
+  // ── 建立問題清單 ──────────────────────────────────────
   const checks = [
-    // SEO
-    { label: 'Title 標籤', pass: title.length > 5, priority:'high', cat:'SEO',
-      detail: title.length > 5 ? `"${title.substring(0,60)}"` : '缺少 &lt;title&gt; 標籤',
-      fix: '加入 &lt;title&gt;品牌名 | 頁面描述&lt;/title&gt;（建議 30–60 字元）' },
-    { label: 'Meta Description', pass: desc.length > 50, priority:'high', cat:'SEO',
-      detail: desc.length > 50 ? `"${desc.substring(0,80)}..."` : desc.length > 0 ? `太短（${desc.length} 字）` : '缺少',
-      fix: '加入 120–160 字元的描述，包含核心關鍵字與行動呼籲' },
-    { label: 'H1 標題', pass: h1s.length > 0, priority:'high', cat:'SEO',
-      detail: h1s.length > 0 ? `找到 ${h1s.length} 個 H1：「${h1s[0]?.textContent?.trim().substring(0,40)}」` : '缺少 &lt;h1&gt;',
-      fix: '每頁只能有一個 &lt;h1&gt;，清楚描述頁面主題' },
-    { label: 'Open Graph 標籤', pass: !!ogTitle, priority:'high', cat:'SEO',
-      detail: ogTitle ? `og:title = "${ogTitle.substring(0,50)}"` : '缺少 og:title / og:description / og:image',
-      fix: '加入 og:title、og:description、og:image（1200×630px）、og:url' },
-    { label: 'OG Image', pass: !!ogImage, priority:'medium', cat:'SEO',
-      detail: ogImage ? ogImage.substring(0,60) : '缺少 og:image',
-      fix: '準備 1200×630px 分享圖，加入 &lt;meta property="og:image" content="..."&gt;' },
-    { label: 'Canonical URL', pass: !!canonical, priority:'high', cat:'SEO',
-      detail: canonical || '未設定',
-      fix: '加入 &lt;link rel="canonical" href="完整網址"&gt;' },
-    { label: 'lang 語言屬性', pass: !!lang, priority:'high', cat:'SEO',
+    // ── SEO ──
+    {
+      label: 'Title 標籤長度',
+      pass: titleEff >= 50 && titleEff <= 120,
+      priority: title ? (titleEff < 50 ? 'high' : 'medium') : 'high',
+      cat: 'SEO',
+      detail: title
+        ? `「${title.substring(0,55)}」有效長度 ${titleEff}（建議 50–120，中文約 25–55 字，英文約 50–65 字元）`
+        : '缺少 &lt;title&gt; 標籤',
+      fix: '調整 title 至中文 25–55 字或英文 50–65 字元，包含品牌名 + 核心關鍵字，避免 Google 截斷或自動重寫'
+    },
+    {
+      label: 'Meta Description 長度',
+      pass: descEff >= 120 && descEff <= 320,
+      priority: desc ? 'medium' : 'high',
+      cat: 'SEO',
+      detail: desc
+        ? `有效長度 ${descEff}（建議 120–320，中文約 60–150 字）：「${desc.substring(0,60)}...」`
+        : '缺少 meta description',
+      fix: '撰寫 60–150 個中文字（有效字元 120–320）的描述，包含目標關鍵字與明確行動呼籲'
+    },
+    {
+      label: 'H1 標題（恰好 1 個）',
+      pass: h1s.length === 1,
+      priority: 'high',
+      cat: 'SEO',
+      detail: h1s.length === 0 ? '缺少 &lt;h1&gt;' : h1s.length === 1
+        ? `「${h1s[0]?.textContent?.trim().substring(0,50)}」` : `找到 ${h1s.length} 個 H1（過多）`,
+      fix: '每頁只能有 1 個 H1 作為主標題，清楚描述頁面主題，包含主要關鍵字'
+    },
+    {
+      label: 'Open Graph 完整性',
+      pass: ogComplete,
+      priority: 'high',
+      cat: 'SEO',
+      detail: ogComplete
+        ? `og:title、og:type、og:url、og:image 均存在`
+        : `缺少：${[!ogTitle&&'og:title',!ogType&&'og:type',!ogUrl&&'og:url',!ogImage&&'og:image'].filter(Boolean).join('、')}`,
+      fix: '必須包含 og:title、og:type、og:url、og:image（1200×630px）4 個欄位，加入 og:description 可提升分享效果'
+    },
+    {
+      label: 'Canonical URL（絕對路徑）',
+      pass: !!canonical && canonical.startsWith('http'),
+      priority: 'high',
+      cat: 'SEO',
+      detail: canonical ? (canonical.startsWith('http') ? canonical.substring(0,70) : `格式錯誤（不可用相對路徑）：${canonical}`) : '未設定',
+      fix: '必須使用完整絕對 URL：&lt;link rel="canonical" href="https://example.com/page"&gt;，不可使用相對路徑'
+    },
+    {
+      label: 'lang 語言屬性',
+      pass: !!lang,
+      priority: 'high',
+      cat: 'SEO',
       detail: lang ? `lang="${lang}"` : '&lt;html&gt; 缺少 lang 屬性',
-      fix: '將開頭改為 &lt;html lang="zh-TW"&gt;' },
-    { label: 'Viewport Meta', pass: !!viewport, priority:'medium', cat:'SEO',
-      detail: viewport || '缺少',
-      fix: '加入 &lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;' },
-    { label: 'Robots Meta', pass: !!robots, priority:'low', cat:'SEO',
-      detail: robots || '未設定（預設允許索引）',
-      fix: '加入 &lt;meta name="robots" content="index, follow"&gt;' },
-    { label: 'H2/H3 結構', pass: h2s.length > 0, priority:'medium', cat:'SEO',
-      detail: h2s.length > 0 ? `H2: ${h2s.length} 個，H3: ${h3s.length} 個` : '缺少小標題結構',
-      fix: '使用 H2/H3 組織頁面內容，標題包含目標關鍵字' },
-    { label: '圖片 Alt 文字', pass: altRatio >= 0.8, priority:'medium', cat:'SEO',
-      detail: images.length > 0 ? `${imagesWithAlt}/${images.length} 張有 alt（${Math.round(altRatio*100)}%）` : '無圖片',
-      fix: '每張圖片加入描述性 alt，包含相關關鍵字' },
-    { label: 'HTTPS', pass: isHttps, priority:'high', cat:'SEO',
-      detail: isHttps ? '已啟用 HTTPS' : '未使用 HTTPS',
-      fix: '申請 SSL 憑證並將所有 http:// 導向 https://' },
-    { label: '內部連結', pass: internalLinks >= 3, priority:'medium', cat:'SEO',
-      detail: `偵測到 ${internalLinks} 個內部連結`,
-      fix: '確保頁面有足夠內部連結，協助搜尋引擎爬取網站' },
-    { label: 'Twitter Card', pass: !!twitterCard, priority:'low', cat:'SEO',
-      detail: twitterCard || '缺少',
-      fix: '加入 &lt;meta name="twitter:card" content="summary_large_image"&gt;' },
-    // GEO
-    { label: 'Schema.org JSON-LD', pass: jsonLds.length > 0, priority:'high', cat:'GEO',
-      detail: jsonLds.length > 0 ? `找到 ${jsonLds.length} 個結構化資料區塊` : '完全沒有結構化資料',
-      fix: '加入 Organization + WebSite Schema，讓 AI 引擎認識你的品牌實體' },
-    { label: 'FAQPage Schema', pass: hasFaq, priority:'high', cat:'GEO',
-      detail: hasFaq ? 'FAQ 結構化資料存在' : '缺少 FAQ 問答內容',
-      fix: '加入至少 5 題 FAQ 並用 FAQPage JSON-LD 標記，提升 AI 引用機率' },
-    { label: 'Organization Schema', pass: hasOrg, priority:'high', cat:'GEO',
-      detail: hasOrg ? 'Organization 標記存在' : '缺少品牌實體標記',
-      fix: '加入 Organization Schema，包含 name、url、logo、contactPoint、sameAs' },
-    { label: 'llms.txt', pass: hasLlms, priority:'high', cat:'GEO',
-      detail: hasLlms ? '偵測到 llms.txt 引用' : '未找到 llms.txt',
-      fix: '在根目錄建立 /llms.txt，告訴 AI 爬蟲網站核心內容與架構' },
-    { label: 'E-E-A-T 作者/機構', pass: hasAuthor, priority:'high', cat:'GEO',
-      detail: hasAuthor ? '偵測到作者/機構標記' : '缺少作者或機構信任信號',
-      fix: '加入作者資訊、關於我們頁面、機構 Schema，提升可信度' },
-    { label: '內容深度 (H1+描述)', pass: h1s.length > 0 && desc.length > 80, priority:'medium', cat:'GEO',
-      detail: `H1: ${h1s.length > 0 ? '有' : '無'}，描述長度: ${desc.length} 字`,
-      fix: '確保有 H1 標題和詳細的 meta description，提升 AI 引用品質' },
+      fix: '將 HTML 開頭改為 &lt;html lang="zh-TW"&gt;，幫助搜尋引擎識別語言並定向正確市場'
+    },
+    {
+      label: 'Viewport Meta（行動裝置）',
+      pass: !!viewport,
+      priority: 'high',
+      cat: 'SEO',
+      detail: viewport || '缺少 viewport 設定，行動裝置顯示異常',
+      fix: '加入 &lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;'
+    },
+    {
+      label: 'Robots Meta',
+      pass: !!robots,
+      priority: 'low',
+      cat: 'SEO',
+      detail: robots || '未設定（搜尋引擎預設允許索引，但建議明確宣告）',
+      fix: '加入 &lt;meta name="robots" content="index, follow"&gt; 明確告知爬蟲行為'
+    },
+    {
+      label: 'H2 結構（至少 2 個）',
+      pass: h2s.length >= 2,
+      priority: 'medium',
+      cat: 'SEO',
+      detail: `H2: ${h2s.length} 個，H3: ${h3s.length} 個${h2s.length >= 2 ? '（結構正常）' : h2s.length === 1 ? '（建議增加）' : '（缺少）'}`,
+      fix: '每頁至少 2 個 H2 小標題，以 H1 → H2 → H3 層級組織內容，標題中包含目標關鍵字'
+    },
+    {
+      label: '圖片 Alt 覆蓋率（≥90%）',
+      pass: altRatio >= 0.9,
+      priority: 'medium',
+      cat: 'SEO',
+      detail: images.length > 0 ? `${imagesWithAlt}/${images.length} 張有 alt（${Math.round(altRatio*100)}%）` : '頁面無圖片',
+      fix: '所有非裝飾性圖片都需加入描述性 alt，包含品牌名或目標關鍵字（勿堆砌）'
+    },
+    {
+      label: 'HTTPS',
+      pass: isHttps,
+      priority: 'high',
+      cat: 'SEO',
+      detail: isHttps ? '已啟用 HTTPS（Google 排名信號之一）' : '⚠ 未使用 HTTPS，影響排名與使用者信任',
+      fix: '申請 SSL 憑證，將所有 http:// 自動 301 導向 https://'
+    },
+    {
+      label: '內部連結（≥3 個）',
+      pass: internalLinks >= 3,
+      priority: 'medium',
+      cat: 'SEO',
+      detail: `偵測到 ${internalLinks} 個內部連結${internalLinks >= 3 ? '' : '（過少）'}`,
+      fix: '每頁至少 3–5 個相關內部連結，協助搜尋引擎爬取整個網站架構'
+    },
+    {
+      label: 'Twitter Card / X',
+      pass: !!twitterCard,
+      priority: 'low',
+      cat: 'SEO',
+      detail: twitterCard ? `twitter:card = "${twitterCard}"` : '缺少 Twitter Card 標籤',
+      fix: '加入 &lt;meta name="twitter:card" content="summary_large_image"&gt; 等 Twitter Card 標籤'
+    },
+    {
+      label: 'Heading 無跳層',
+      pass: !hasHeadingSkip,
+      priority: 'medium',
+      cat: 'SEO',
+      detail: hasHeadingSkip ? '偵測到 Heading 層級跳層（如 H2 直接跳 H4），影響語意結構' : 'Heading 層級結構正確',
+      fix: '確保標題層級依序 H1→H2→H3，不可跳過層級，維持清晰語意結構'
+    },
+    {
+      label: 'Charset 宣告',
+      pass: !!charset,
+      priority: 'low',
+      cat: 'SEO',
+      detail: charset ? '已宣告字元編碼' : '缺少 charset 宣告',
+      fix: '在 &lt;head&gt; 最上方加入 &lt;meta charset="UTF-8"&gt;'
+    },
+    {
+      label: 'Favicon',
+      pass: !!favicon,
+      priority: 'low',
+      cat: 'SEO',
+      detail: favicon ? '已設定 favicon' : '缺少 favicon（影響搜尋結果點擊率）',
+      fix: '加入 &lt;link rel="icon" href="/favicon.ico"&gt;，圖示應為正方形，建議 48×48px 以上'
+    },
+    {
+      label: '頁面文字量（≥300 字）',
+      pass: charCount >= 300,
+      priority: 'medium',
+      cat: 'SEO',
+      detail: `偵測到約 ${charCount} 字元（建議至少 300 字以上的有意義內容）`,
+      fix: '擴充頁面內容至 600 字以上，提升內容深度與關鍵字覆蓋度'
+    },
+
+    // ── GEO ──
+    {
+      label: 'JSON-LD 結構化資料',
+      pass: jsonLds.length > 0,
+      priority: 'high',
+      cat: 'GEO',
+      detail: jsonLds.length > 0 ? `找到 ${jsonLds.length} 個 JSON-LD 區塊，類型：${[...new Set(schemaTypes)].join('、') || '未知'}` : '完全沒有結構化資料',
+      fix: '加入 Organization + WebSite JSON-LD，讓 Google 知識圖譜與 AI 引擎建立品牌實體認知'
+    },
+    {
+      label: `FAQPage Schema（≥3 題）`,
+      pass: hasFaq,
+      priority: 'high',
+      cat: 'GEO',
+      detail: faqCount > 0 ? `偵測到 ${faqCount} 題（建議 3–8 題）` : '未找到 FAQPage 結構化資料',
+      fix: '在頁面加入 3–8 題可見的 FAQ 問答，並用 FAQPage JSON-LD 標記；FAQ 是 AI 引用率最高的內容格式（+47%）'
+    },
+    {
+      label: 'Organization Schema',
+      pass: hasOrg,
+      priority: 'high',
+      cat: 'GEO',
+      detail: hasOrg ? 'Organization / LocalBusiness Schema 存在' : '缺少品牌機構結構化資料',
+      fix: '加入 Organization Schema，必須包含 name、url、logo、sameAs（社群帳號網址）4 個欄位'
+    },
+    {
+      label: 'WebSite Schema',
+      pass: hasWebSite,
+      priority: 'medium',
+      cat: 'GEO',
+      detail: hasWebSite ? 'WebSite Schema 存在' : '缺少 WebSite 結構化資料',
+      fix: '加入 WebSite Schema，包含 name、url、inLanguage，可選加入 SearchAction 啟用站內搜尋框'
+    },
+    {
+      label: 'sameAs 社群連結（≥3 個）',
+      pass: sameAsCount >= 3,
+      priority: 'medium',
+      cat: 'GEO',
+      detail: sameAsCount > 0 ? `sameAs 包含 ${sameAsCount} 個社群平台連結` : '未在 Schema 中設定 sameAs',
+      fix: '在 Organization Schema 的 sameAs 欄位加入 ≥3 個已驗證社群帳號（LinkedIn、Facebook、Instagram、YouTube 等）'
+    },
+    {
+      label: 'llms.txt（AI 爬蟲說明）',
+      pass: hasLlms,
+      priority: 'high',
+      cat: 'GEO',
+      detail: hasLlms ? '偵測到 llms.txt 引用' : '未找到 llms.txt（AI 引擎可能忽略此網站）',
+      fix: '在根目錄建立 /llms.txt，以 Markdown 格式說明網站核心內容、主要頁面連結，讓 GPTBot / ClaudeBot / PerplexityBot 了解網站'
+    },
+    {
+      label: 'E-E-A-T 信號（作者/機構）',
+      pass: hasAuthor,
+      priority: 'high',
+      cat: 'GEO',
+      detail: hasAuthor ? '偵測到作者或機構相關標記' : '缺少 E-E-A-T 可信度信號',
+      fix: '加入作者資訊（schema author 欄位）、關於我們頁面、服務年資或獲獎認證；96% 的 AI Overview 引用來源都有強 E-E-A-T 信號'
+    },
+    {
+      label: 'BreadcrumbList Schema',
+      pass: hasBreadcrumb,
+      priority: 'medium',
+      cat: 'GEO',
+      detail: hasBreadcrumb ? 'BreadcrumbList Schema 存在' : '缺少麵包屑結構',
+      fix: '加入 BreadcrumbList JSON-LD，幫助 AI 理解頁面在網站中的層級位置'
+    },
+    {
+      label: 'AI Bot 明確設定',
+      pass: hasAiBots,
+      priority: 'medium',
+      cat: 'GEO',
+      detail: hasAiBots ? '偵測到 AI bot 相關設定' : '未偵測到 GPTBot / ClaudeBot / PerplexityBot / Google-Extended 設定',
+      fix: '在 robots.txt 明確列出 AI bot 規則（GPTBot、ClaudeBot、PerplexityBot、Google-Extended），區分允許索引 vs. 禁止訓練'
+    },
+    {
+      label: '日期標記（發布/更新）',
+      pass: hasDate,
+      priority: 'low',
+      cat: 'GEO',
+      detail: hasDate ? '偵測到 datePublished 或 dateModified' : '缺少日期標記',
+      fix: '在 Schema 中加入 datePublished 和 dateModified（ISO 8601 格式），讓 AI 引擎判斷內容新鮮度'
+    },
+    {
+      label: 'Article / BlogPosting Schema',
+      pass: hasArticle,
+      priority: 'low',
+      cat: 'GEO',
+      detail: hasArticle ? 'Article 或 BlogPosting Schema 存在' : '缺少文章類型結構化資料',
+      fix: '若頁面包含文章或部落格內容，加入 Article Schema 並填入 headline、author、datePublished'
+    },
   ];
 
   const highIssues   = checks.filter(c => !c.pass && c.priority === 'high').length;
