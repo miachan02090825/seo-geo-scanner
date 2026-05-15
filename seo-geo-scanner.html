@@ -202,6 +202,29 @@
     margin-left: auto;
   }
 
+  /* Inline error/info toast */
+  .inline-msg {
+    display: none;
+    margin-top: 12px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    animation: fadeIn 0.2s ease;
+  }
+  .inline-msg.error {
+    background: rgba(255,107,107,0.12);
+    border: 1px solid rgba(255,107,107,0.3);
+    color: #ffaaaa;
+  }
+  .inline-msg.warn {
+    background: rgba(255,217,61,0.1);
+    border: 1px solid rgba(255,217,61,0.25);
+    color: #ffe07a;
+  }
+  .inline-msg.show { display: block; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+
   /* Score Cards */
   .scores-grid {
     display: grid;
@@ -630,13 +653,14 @@
     <div class="mode-panel active" id="panelUrl">
       <label>網站網址</label>
       <div class="input-row">
-        <input type="url" id="urlInput" placeholder="https://example.com" value="https://www.slam888.com.tw/official">
+        <input type="url" id="urlInput" placeholder="https://example.com">
         <button class="btn-scan" onclick="scanWebsite()">開始掃描</button>
       </div>
       <p class="notice">
         ⚠ 使用 CORS Proxy 抓取，部分有防爬限制的網站可能無法取得完整原始碼。
         如遇失敗，請改用「貼上原始碼」模式以獲得最準確的結果。
       </p>
+      <div class="inline-msg error" id="scanErrorMsg"></div>
     </div>
 
     <!-- Paste mode -->
@@ -1332,6 +1356,18 @@
 </div>
 
 <script>
+function showError(msg) {
+  const el = document.getElementById('scanErrorMsg');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 8000);
+}
+function hideError() {
+  const el = document.getElementById('scanErrorMsg');
+  if (el) el.classList.remove('show');
+}
+
 // Mode switching (URL vs Paste)
 function switchMode(mode) {
   document.getElementById('modeTabUrl').classList.toggle('active', mode === 'url');
@@ -1360,7 +1396,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function scanPasted() {
   const html = document.getElementById('htmlPasteArea').value.trim();
-  if (!html) { alert('請先貼上 HTML 原始碼'); return; }
+  if (!html) { showError('⚠ 請先貼上 HTML 原始碼再分析'); return; }
+  hideError();
   const url = document.getElementById('pasteUrlHint').value.trim() || '（貼上原始碼）';
   analyzeAndRender(html, url);
 }
@@ -1388,7 +1425,7 @@ function toggleSection(header) {
 // Scan website function
 async function scanWebsite() {
   const url = document.getElementById('urlInput').value.trim();
-  if (!url) { alert('請輸入網址'); return; }
+  if (!url) { showError('⚠ 請輸入要掃描的網址'); return; }
 
   const overlay = document.getElementById('loadingOverlay');
   const loadingText = document.getElementById('loadingText');
@@ -1416,20 +1453,41 @@ async function scanWebsite() {
     }
   }, 600);
 
+  // 多 proxy 輪流嘗試
+  const proxies = [
+    async (u) => {
+      const r = await fetch(`https://corsproxy.io/?url=${encodeURIComponent(u)}`, { signal: AbortSignal.timeout(20000) });
+      if (!r.ok) throw new Error('corsproxy non-200');
+      return r.text();
+    },
+    async (u) => {
+      const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, { signal: AbortSignal.timeout(20000) });
+      const d = await r.json();
+      return d.contents || '';
+    },
+    async (u) => {
+      const r = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`, { signal: AbortSignal.timeout(20000) });
+      if (!r.ok) throw new Error('codetabs non-200');
+      return r.text();
+    },
+  ];
+
   try {
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-    const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
-    const data = await res.json();
-    const html = data.contents || '';
+    let html = '';
+    let lastErr = null;
+    for (const proxy of proxies) {
+      try {
+        loadingSteps.textContent = `嘗試 Proxy ${proxies.indexOf(proxy) + 1} / ${proxies.length}...`;
+        html = await proxy(url);
+        if (html && html.length > 100) break;
+      } catch (e) { lastErr = e; }
+    }
+    if (!html || html.length < 100) throw lastErr || new Error('所有 Proxy 均無回應');
 
     clearInterval(stepTimer);
     overlay.classList.remove('active');
     btn.disabled = false;
-
-    if (!html) {
-      alert('無法抓取該網頁，可能有防爬蟲限制。請嘗試直接貼上網頁原始碼。');
-      return;
-    }
+    hideError();
 
     analyzeAndRender(html, url);
 
@@ -1437,7 +1495,7 @@ async function scanWebsite() {
     clearInterval(stepTimer);
     overlay.classList.remove('active');
     btn.disabled = false;
-    alert('抓取失敗：' + err.message + '\n\n可能原因：\n1. 網站有防爬蟲保護\n2. 網路問題\n3. CORS Proxy 暫時不可用\n\n建議：直接貼上網頁原始碼進行分析。');
+    showError('⚠ 抓取失敗：' + (err.message || '連線逾時') + '。可能原因：網站有防爬蟲保護、網路問題、或 CORS Proxy 暫時不可用。建議切換到「📋 貼上原始碼」模式。');
   }
 }
 
