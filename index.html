@@ -1659,6 +1659,15 @@ function analyzeAndRender(html, url) {
     return h.startsWith('/') || h.startsWith('#') || (hostname && h.includes(hostname));
   }).length;
 
+  // GTM 偵測
+  const gtmIdMatch  = html.match(/GTM-[A-Z0-9]{4,10}/i);
+  const gtmId       = gtmIdMatch ? gtmIdMatch[0].toUpperCase() : '';
+  const hasGtmScript= rawLower.includes('googletagmanager.com/gtm.js') || rawLower.includes('googletagmanager.com/gtag/js');
+  const hasGtmNoscript = rawLower.includes('googletagmanager.com/ns.html');
+  const hasDataLayer = rawLower.includes('datalayer');
+  const hasGtm = (hasGtmScript || !!gtmId) && hasDataLayer;
+  const gtmComplete = hasGtm && hasGtmNoscript; // 含 <noscript> 備援
+
   // 頁面文字量（估算）
   const bodyText = (doc.body?.textContent || '').replace(/\s+/g,' ').trim();
   const charCount = bodyText.length;
@@ -1697,6 +1706,8 @@ function analyzeAndRender(html, url) {
     { pts:  3, pass: !!charset },                           // charset 宣告
     { pts:  2, pass: !!favicon },                           // Favicon
     { pts:  4, pass: charCount >= 300 },                    // 頁面有足夠文字
+    { pts:  5, pass: hasGtm },                              // GTM 已安裝
+    { pts:  2, pass: gtmComplete },                         // GTM noscript 備援
   ];
   const GEO_RULES = [
     { pts: 18, pass: jsonLds.length > 0 },                  // 有 JSON-LD 結構化資料
@@ -1861,6 +1872,28 @@ function analyzeAndRender(html, url) {
       cat: 'SEO',
       detail: `偵測到約 ${charCount} 字元（建議至少 300 字以上的有意義內容）`,
       fix: '擴充頁面內容至 600 字以上，提升內容深度與關鍵字覆蓋度'
+    },
+    {
+      label: 'Google Tag Manager（GTM）',
+      pass: hasGtm,
+      priority: 'high',
+      cat: 'SEO',
+      detail: hasGtm
+        ? `已安裝 GTM${gtmId ? '，容器 ID：' + gtmId : ''}${hasGtmNoscript ? '，含 &lt;noscript&gt; 備援' : '，⚠ 缺少 &lt;noscript&gt; 備援'}`
+        : `未偵測到 GTM${gtmId ? '（找到容器 ID：' + gtmId + '，但缺少 dataLayer 或 gtm.js）' : ''}`,
+      fix: '在 &lt;head&gt; 最頂部加入 GTM script 片段，並在 &lt;body&gt; 開頭加入 &lt;noscript&gt; 備援，才能確保在停用 JS 的環境也能追蹤'
+    },
+    {
+      label: 'GTM &lt;noscript&gt; 備援',
+      pass: gtmComplete,
+      priority: 'medium',
+      cat: 'SEO',
+      detail: gtmComplete
+        ? '&lt;noscript&gt; iframe 備援已設定'
+        : hasGtm
+          ? '已安裝 GTM script，但 &lt;body&gt; 缺少 &lt;noscript&gt; 備援（部分環境會漏追蹤）'
+          : '未安裝 GTM，此項不適用',
+      fix: '在 &lt;body&gt; 開頭緊接加入 GTM 的 noscript 片段：&lt;noscript&gt;&lt;iframe src="https://www.googletagmanager.com/ns.html?id=GTM-XXXXXX"...&gt;&lt;/iframe&gt;&lt;/noscript&gt;'
     },
 
     // ── GEO ──
