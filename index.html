@@ -18,11 +18,30 @@
     --text2: #9099c4;
     --text3: #5a6080;
     --good: #00c9a7;
-    --warn: #ffd93d;
+    --warn: #e6a817;
     --bad: #ff6b6b;
     --radius: 14px;
     --shadow: 0 4px 24px rgba(0,0,0,0.4);
   }
+  /* ── 淺色主題 ── */
+  body.light {
+    --bg: #f4f5fb;
+    --surface: #ffffff;
+    --surface2: #eef0f8;
+    --border: #d8ddf0;
+    --text: #1a1d2e;
+    --text2: #4a5070;
+    --text3: #8890b0;
+    --shadow: 0 4px 20px rgba(100,110,160,0.12);
+  }
+  body.light .header h1 {
+    background: linear-gradient(135deg, #5b54e0, #00a88c);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  body.light .code-block { color: #0a6e5a; background: #f0faf8; }
+  body.light .html-textarea { color: #0a6e5a; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
@@ -48,6 +67,72 @@
     margin-bottom: 8px;
   }
   .header p { color: var(--text2); font-size: 0.95rem; }
+  .theme-toggle {
+    position: fixed;
+    top: 16px; right: 16px;
+    z-index: 200;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 7px 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+    box-shadow: var(--shadow);
+  }
+  .theme-toggle:hover { color: var(--text); border-color: var(--accent); }
+
+  /* GTM Card */
+  .gtm-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow);
+  }
+  .gtm-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .gtm-card-header h3 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    flex: 1;
+  }
+  .gtm-id-badge {
+    font-family: 'Consolas', monospace;
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 6px;
+    background: var(--surface2);
+    color: var(--accent);
+    border: 1px solid var(--border);
+  }
+  .gtm-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  @media (max-width: 560px) { .gtm-grid { grid-template-columns: 1fr 1fr; } }
+  .gtm-cell {
+    background: var(--bg);
+    border-radius: 9px;
+    padding: 11px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .gtm-cell .gc-label { font-size: 0.75rem; color: var(--text3); }
+  .gtm-cell .gc-value { font-size: 0.9rem; font-weight: 700; }
 
   /* Scan Form */
   .scan-form {
@@ -676,6 +761,10 @@
 </div>
 
 <div class="container">
+  <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">
+    <span id="themeIcon">☀️</span><span id="themeLabel">淺色</span>
+  </button>
+
   <div class="header">
     <h1>🔍 SEO + GEO 智能掃描工具</h1>
     <p>深度分析你的網站在搜尋引擎與 AI 生成引擎中的能見度</p>
@@ -810,6 +899,41 @@
           <h3>GEO 評分</h3>
           <p>生成引擎優化<br>AI 引用 &amp; 推薦能見度</p>
           <span class="grade-badge" style="background:rgba(255,107,107,0.15);color:var(--bad)">F 級 — 幾乎不可見</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- GTM Card -->
+    <div class="gtm-card" id="gtmCard">
+      <div class="gtm-card-header">
+        <div class="section-icon" style="background:rgba(255,168,0,0.15);font-size:1.1rem">📦</div>
+        <h3>Google Tag Manager 安裝狀態</h3>
+        <span class="gtm-id-badge" id="gtmIdBadge">—</span>
+      </div>
+      <div class="gtm-grid">
+        <div class="gtm-cell">
+          <span class="gc-label">GTM 安裝</span>
+          <span class="gc-value" id="gc-installed" style="color:var(--text3)">— 尚未掃描</span>
+        </div>
+        <div class="gtm-cell">
+          <span class="gc-label">容器 ID</span>
+          <span class="gc-value" id="gc-id" style="color:var(--text3)">—</span>
+        </div>
+        <div class="gtm-cell">
+          <span class="gc-label">dataLayer</span>
+          <span class="gc-value" id="gc-datalayer" style="color:var(--text3)">—</span>
+        </div>
+        <div class="gtm-cell">
+          <span class="gc-label">gtm.js Script</span>
+          <span class="gc-value" id="gc-script" style="color:var(--text3)">—</span>
+        </div>
+        <div class="gtm-cell">
+          <span class="gc-label">&lt;noscript&gt; 備援</span>
+          <span class="gc-value" id="gc-noscript" style="color:var(--text3)">—</span>
+        </div>
+        <div class="gtm-cell">
+          <span class="gc-label">整體評估</span>
+          <span class="gc-value" id="gc-overall" style="color:var(--text3)">—</span>
         </div>
       </div>
     </div>
@@ -1403,6 +1527,38 @@
 </div>
 
 <script>
+// ── 深淺色切換 ────────────────────────────────────────
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  document.getElementById('themeIcon').textContent  = isLight ? '🌙' : '☀️';
+  document.getElementById('themeLabel').textContent = isLight ? '深色' : '淺色';
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+}
+// 記憶上次選擇
+(function(){
+  if (localStorage.getItem('theme') === 'light') {
+    document.body.classList.add('light');
+    document.getElementById('themeIcon').textContent  = '🌙';
+    document.getElementById('themeLabel').textContent = '深色';
+  }
+})();
+
+// ── GTM 卡片更新 ─────────────────────────────────────
+function updateGtmCard({ hasGtm, gtmId, hasGtmScript, hasGtmNoscript, hasDataLayer, gtmComplete }) {
+  const ok   = v => `<span style="color:var(--good)">✅ ${v}</span>`;
+  const no   = v => `<span style="color:var(--bad)">❌ ${v}</span>`;
+  const warn = v => `<span style="color:var(--warn)">⚠️ ${v}</span>`;
+
+  document.getElementById('gtmIdBadge').textContent    = gtmId || '無容器 ID';
+  document.getElementById('gtmIdBadge').style.color    = gtmId ? 'var(--accent)' : 'var(--text3)';
+  document.getElementById('gc-installed').innerHTML    = hasGtm    ? ok('已安裝')    : no('未偵測到');
+  document.getElementById('gc-id').innerHTML           = gtmId     ? ok(gtmId)       : no('未找到');
+  document.getElementById('gc-datalayer').innerHTML    = hasDataLayer ? ok('存在')   : no('缺少');
+  document.getElementById('gc-script').innerHTML       = hasGtmScript ? ok('已載入') : no('未找到');
+  document.getElementById('gc-noscript').innerHTML     = hasGtmNoscript ? ok('已設定') : (hasGtm ? warn('缺少備援') : no('未設定'));
+  document.getElementById('gc-overall').innerHTML      = gtmComplete ? ok('完整安裝') : hasGtm ? warn('安裝不完整') : no('未安裝');
+}
+
 function showError(msg) {
   const el = document.getElementById('scanErrorMsg');
   if (!el) return;
@@ -2082,6 +2238,7 @@ function analyzeAndRender(html, url) {
   document.getElementById('introArea').style.display = 'none';
   document.getElementById('resultsArea').classList.add('visible');
   document.getElementById('downloadBar').style.display = 'flex';
+  updateGtmCard({ hasGtm, gtmId, hasGtmScript, hasGtmNoscript, hasDataLayer, gtmComplete });
 
   // 儲存最新掃描結果供下載使用
   window._lastScan = { checks, seoScore, geoScore, url,
