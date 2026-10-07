@@ -750,6 +750,63 @@
     font-size: 0.78rem;
     line-height: 1.6;
   }
+
+  /* ── 全站掃描 ── */
+  .scope-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 12px; font-size: 0.85rem; color: var(--text2); }
+  .scope-opt { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; margin: 0; }
+  .scope-opt input { accent-color: var(--accent); }
+  .scope-row select {
+    background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 5px 10px; font-size: 0.83rem;
+  }
+  .jina-key { margin-top: 10px; font-size: 0.8rem; color: var(--text3); }
+  .jina-key summary { cursor: pointer; }
+  .jina-key input {
+    width: 100%; max-width: 360px; margin-top: 8px; background: var(--surface2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 0.83rem;
+  }
+  .jina-key p { margin: 6px 0 0; line-height: 1.6; }
+
+  .site-back-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; font-size: 0.83rem; color: var(--text2); }
+  .site-back-bar button {
+    background: var(--surface2); color: var(--accent); border: 1px solid var(--border);
+    border-radius: 8px; padding: 7px 14px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+  }
+
+  .site-overview { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 20px; }
+  .so-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .so-head h3 { margin: 0; font-size: 1rem; color: var(--text); }
+  .so-sub { font-size: 0.78rem; color: var(--text3); }
+  .so-notes { font-size: 0.8rem; color: var(--warn); margin-bottom: 10px; line-height: 1.7; }
+  .so-table-wrap { max-height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+  .so-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+  .so-table th {
+    position: sticky; top: 0; background: var(--surface2); color: var(--text2);
+    text-align: left; font-weight: 600; padding: 8px 12px; white-space: nowrap;
+  }
+  .so-table td { padding: 8px 12px; border-top: 1px solid var(--border); vertical-align: top; }
+  .so-table tr:hover td { background: var(--surface2); }
+  .so-page { display: flex; flex-direction: column; text-decoration: none; min-width: 0; }
+  .so-title { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+  .so-path { color: var(--text3); font-size: 0.75rem; overflow-wrap: anywhere; }
+  .so-num { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .so-num.good { color: var(--good); } .so-num.warn { color: var(--warn); } .so-num.bad { color: var(--bad); }
+
+  .page-count {
+    display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 10px;
+    font-size: 0.72rem; font-weight: 600; background: var(--surface2); color: var(--text2); vertical-align: middle;
+  }
+  .page-count.bad { background: rgba(255,107,107,0.12); color: var(--bad); }
+  .fail-pages { margin: 8px 0 4px; font-size: 0.8rem; }
+  .fail-pages summary { cursor: pointer; color: var(--accent); }
+  .fail-pages ul { list-style: none; margin: 8px 0 0; padding: 0; max-height: 260px; overflow: auto; }
+  .fail-pages li { display: flex; flex-direction: column; padding: 6px 0; border-top: 1px dashed var(--border); }
+  .fail-pages li a { color: var(--accent2); overflow-wrap: anywhere; }
+  .fail-pages li span { color: var(--text3); overflow-wrap: anywhere; }
+  @media (max-width: 560px) {
+    .site-overview { padding: 14px 12px; }
+    .so-table th, .so-table td { padding: 7px 8px; }
+  }
 </style>
 </head>
 <body>
@@ -786,6 +843,22 @@
         <input type="url" id="urlInput" placeholder="https://example.com">
         <button class="btn-scan" onclick="scanWebsite()">開始掃描</button>
       </div>
+      <div class="scope-row">
+        <label class="scope-opt"><input type="radio" name="scanScope" value="site" checked onchange="updateScopeUi()"> 全站掃描</label>
+        <label class="scope-opt"><input type="radio" name="scanScope" value="page" onchange="updateScopeUi()"> 只掃這一頁</label>
+        <select id="pageLimit" aria-label="最多掃描頁數">
+          <option value="20">最多 20 頁</option>
+          <option value="50" selected>最多 50 頁</option>
+          <option value="100">最多 100 頁</option>
+          <option value="200">最多 200 頁</option>
+          <option value="500">最多 500 頁</option>
+        </select>
+      </div>
+      <details class="jina-key" id="jinaKeyBox">
+        <summary>⚡ 加速選項：Jina API Key（選填）</summary>
+        <input type="password" id="jinaKeyInput" placeholder="jina_xxxxxxxx" autocomplete="off" oninput="saveJinaKey(this.value)">
+        <p>未填時每分鐘約可掃 18 頁（50 頁約 3 分鐘）。到 jina.ai 免費申請 Key 後可大幅加速。Key 只存在你這台電腦的瀏覽器裡。</p>
+      </details>
       <div class="inline-msg error" id="scanErrorMsg"></div>
     </div>
 
@@ -828,6 +901,12 @@
 
   <!-- Results Area -->
   <div class="results-area visible" id="resultsArea">
+
+    <!-- 從全站報告點進單頁時顯示 -->
+    <div class="site-back-bar" id="siteBackBar" style="display:none">
+      <button onclick="backToSite()">← 返回全站報告</button>
+      <span id="siteBackInfo"></span>
+    </div>
 
     <!-- Site Info -->
     <div class="site-info">
@@ -941,6 +1020,9 @@
       <button class="btn-dl md" onclick="downloadReport('md')">⬇ Markdown (.md)</button>
       <button class="btn-dl word" onclick="downloadReport('word')">⬇ Word (.doc)</button>
     </div>
+
+    <!-- 全站掃描：各頁評分 -->
+    <div class="site-overview" id="siteOverview" style="display:none"></div>
 
     <!-- Tabs -->
     <div class="tabs">
@@ -1582,8 +1664,16 @@ function clearPaste() {
   document.getElementById('charCount').textContent = '0 字元';
 }
 
+function updateScopeUi() {
+  const site = document.querySelector('input[name="scanScope"]:checked')?.value === 'site';
+  document.getElementById('pageLimit').style.display = site ? '' : 'none';
+  document.getElementById('jinaKeyBox').style.display = site ? '' : 'none';
+}
+
 // Live char count
 document.addEventListener('DOMContentLoaded', () => {
+  const keyInput = document.getElementById('jinaKeyInput');
+  if (keyInput) keyInput.value = getJinaKey();
   const ta = document.getElementById('htmlPasteArea');
   if (ta) {
     ta.addEventListener('input', () => {
@@ -1630,8 +1720,10 @@ function cancelScan() {
 }
 
 async function scanWebsite() {
-  const url = document.getElementById('urlInput').value.trim();
+  let url = document.getElementById('urlInput').value.trim();
   if (!url) { showError('⚠ 請輸入要掃描的網址'); return; }
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  if (document.querySelector('input[name="scanScope"]:checked')?.value === 'site') return scanSite(url);
 
   // 若上一次還在跑，先取消它
   cancelScan();
@@ -1675,8 +1767,7 @@ async function scanWebsite() {
   const proxies = [
     async (u) => {
       // r.jina.ai：公司網路下其他免費 proxy 常被擋，這條最穩定
-      const r = await fetch(`https://r.jina.ai/${u}`,
-        { headers: { 'X-Return-Format': 'html', 'X-No-Cache': 'true' }, signal: mkSignal(outerSignal, 25000) });
+      const r = await jinaFetch(u, 'html', outerSignal, 25000);
       if (!r.ok) {
         let msg = `jina ${r.status}`;
         try { msg = (await r.json()).message || msg; } catch {}
@@ -1759,6 +1850,321 @@ async function scanWebsite() {
   }
 }
 
+// ── r.jina.ai 共用抓取（限速 + 429 自動重試）─────────────
+// 沒有 API Key 時 jina 每分鐘約 20 次，有 Key 可到數百次
+function getJinaKey() {
+  try { return localStorage.getItem('jinaKey') || ''; } catch { return ''; }
+}
+function saveJinaKey(v) {
+  try { v ? localStorage.setItem('jinaKey', v.trim()) : localStorage.removeItem('jinaKey'); } catch {}
+}
+
+function sleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new DOMException('Aborted', 'AbortError'));
+    const t = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')); }, { once: true });
+  });
+}
+
+const _jinaStarts = [];
+async function jinaSlot(signal) {
+  const cap = getJinaKey() ? 400 : 18;
+  for (;;) {
+    const now = Date.now();
+    while (_jinaStarts.length && now - _jinaStarts[0] > 60000) _jinaStarts.shift();
+    if (_jinaStarts.length < cap) { _jinaStarts.push(now); return; }
+    await sleep(_jinaStarts[0] + 60000 - now + 50, signal);
+  }
+}
+
+async function jinaFetch(target, fmt, outerSignal, timeoutMs = 25000) {
+  const headers = { 'X-Return-Format': fmt, 'X-No-Cache': 'true' };
+  const key = getJinaKey();
+  if (key) headers.Authorization = 'Bearer ' + key;
+  for (let attempt = 0; ; attempt++) {
+    await jinaSlot(outerSignal);
+    let signal;
+    try { signal = AbortSignal.any([outerSignal, AbortSignal.timeout(timeoutMs)]); }
+    catch { signal = AbortSignal.timeout(timeoutMs); }
+    const r = await fetch(`https://r.jina.ai/${target}`, { headers, signal });
+    if (r.status === 429 && attempt < 3) { await sleep(15000 * (attempt + 1), outerSignal); continue; }
+    return r;
+  }
+}
+
+// ── 全站掃描 ──────────────────────────────────────────
+const NON_HTML_EXT = /\.(jpe?g|png|gif|webp|avif|svg|ico|bmp|pdf|zip|rar|7z|gz|mp4|mp3|webm|avi|mov|wav|css|js|json|xml|txt|csv|docx?|xlsx?|pptx?|apk|exe|dmg|woff2?|ttf|eot)$/i;
+
+// 只保留同網域的 HTML 頁面；從連結找到的網址預設不收帶參數的（避免 ?page=1,2,3... 無限展開）
+function normalizePageUrl(href, base, { allowQuery = false } = {}) {
+  if (!href || /^(mailto|tel|javascript|data):/i.test(href)) return null;
+  try {
+    const b = new URL(base);
+    const u = new URL(href, b);
+    if (!/^https?:$/.test(u.protocol)) return null;
+    if (u.hostname.replace(/^www\./, '') !== b.hostname.replace(/^www\./, '')) return null;
+    if (NON_HTML_EXT.test(u.pathname)) return null;
+    if (u.search && !allowQuery) return null;
+    u.hash = '';
+    return u.href;
+  } catch { return null; }
+}
+
+function pageKey(u) {
+  const x = new URL(u);
+  return x.hostname.replace(/^www\./, '') + (x.pathname.replace(/\/+$/, '') || '/') + x.search;
+}
+
+function pagePath(u) {
+  try { const x = new URL(u); return decodeURI(x.pathname + x.search); } catch { return u; }
+}
+
+async function crawlSite(startUrl, limit, signal, onProgress) {
+  const siteFiles = await fetchSiteFiles(startUrl, signal);
+  const robotsParsed = siteFiles?.robots?.parsed;
+  const googleRules = robotsParsed ? robotsRulesFor(robotsParsed, 'googlebot').rules : [];
+
+  const queue = [], seen = new Set();
+  const enqueue = (u, fromSitemap) => {
+    const n = normalizePageUrl(u, startUrl, { allowQuery: fromSitemap });
+    if (!n) return;
+    const k = pageKey(n);
+    if (seen.has(k)) return;
+    // 從連結找到的頁面若被 robots.txt 擋住就不掃（多半是後台）；sitemap 內的照掃，才能抓出設定矛盾
+    if (!fromSitemap && !robotsAllows(googleRules, pagePath(n)).allow) return;
+    seen.add(k);
+    queue.push(n);
+  };
+  enqueue(startUrl, true);
+  (siteFiles?.sitemap?.urls || []).forEach(u => enqueue(u, true));
+
+  const pages = [], failed = [];
+  let idx = 0;
+  const CONCURRENCY = 3;
+  while (idx < queue.length && pages.length + failed.length < limit && !signal.aborted) {
+    const room = limit - pages.length - failed.length;
+    const batch = queue.slice(idx, idx + Math.min(CONCURRENCY, room));
+    idx += batch.length;
+    await Promise.all(batch.map(async u => {
+      try {
+        const r = await jinaFetch(u, 'html', signal, 30000);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const html = await r.text();
+        if (!html || html.length < 100) throw new Error('內容為空');
+        const res = analyzePage(html, u, siteFiles);
+        if (/\b404\b|not found|找不到|頁面不存在/i.test(res.meta.title)) throw new Error(`疑似 404 頁面（標題：${res.meta.title.slice(0, 40)}）`);
+        res.internalUrls.forEach(l => enqueue(l, false));
+        delete res.internalUrls;
+        pages.push(res);
+      } catch (e) {
+        if (signal.aborted) return;
+        failed.push({ url: u, reason: e.name === 'TimeoutError' ? '讀取逾時' : e.message });
+      }
+      onProgress(pages.length + failed.length, Math.min(limit, queue.length), u);
+    }));
+  }
+  return { siteFiles, pages, failed, discovered: queue.length, limit };
+}
+
+async function scanSite(url) {
+  cancelScan();
+  _scanController = new AbortController();
+  const signal = _scanController.signal;
+
+  const overlay      = document.getElementById('loadingOverlay');
+  const loadingText  = document.getElementById('loadingText');
+  const loadingSteps = document.getElementById('loadingSteps');
+  const btn = document.querySelector('#panelUrl .btn-scan');
+  overlay.classList.add('active');
+  btn.disabled = true;
+  hideError();
+
+  const limit = parseInt(document.getElementById('pageLimit').value, 10) || 50;
+  loadingText.textContent  = '讀取網站設定與 Sitemap...';
+  loadingSteps.textContent = 'robots.txt、sitemap.xml、llms.txt';
+  const t0 = Date.now();
+
+  try {
+    const site = await crawlSite(url, limit, signal, (done, total, cur) => {
+      const perPage = (Date.now() - t0) / done;
+      const remainMin = Math.ceil(perPage * (total - done) / 60000);
+      loadingText.textContent  = `全站掃描中… ${done} / ${total} 頁`;
+      loadingSteps.textContent = `${pagePath(cur).slice(0, 60)}${total > done ? `　｜　預估還要約 ${remainMin} 分鐘` : ''}`;
+    });
+    if (!site.pages.length) {
+      if (!signal.aborted) {
+        const reason = site.failed[0]?.reason ? `（${site.failed[0].reason}）` : '';
+        showError(`⚠ 沒有成功讀取任何頁面${reason}：請確認網址正確，或改用「單頁掃描」。`);
+      }
+      return;
+    }
+    // 中途取消也顯示已掃完的部分
+    renderSiteReport({ ...site, startUrl: url, partial: signal.aborted });
+  } catch (err) {
+    if (err.name !== 'AbortError') showError(`⚠ 全站掃描失敗（${err.message}）`);
+  } finally {
+    overlay.classList.remove('active');
+    btn.disabled = false;
+    _scanController = null;
+  }
+}
+
+// ── 全站報告 ──────────────────────────────────────────
+function aggregateSite(site) {
+  const { pages, failed } = site;
+  const PRI = { low: 0, medium: 1, high: 2 };
+  const startKey = pageKey(normalizePageUrl(site.startUrl, site.startUrl, { allowQuery: true }) || site.startUrl);
+  const home = pages.find(p => pageKey(p.url) === startKey) || pages[0];
+
+  // 每一頁都會檢查的項目 → 統計幾頁沒過
+  const agg = new Map();
+  pages.forEach(p => p.checks.forEach(c => {
+    if (c.scope === 'site') return;
+    let a = agg.get(c.label);
+    if (!a) { a = { label: c.label, cat: c.cat, fix: c.fix, basePriority: c.priority, priority: null, total: 0, fails: [] }; agg.set(c.label, a); }
+    a.total++;
+    if (!c.pass) {
+      a.fails.push({ url: p.url, detail: c.detail });
+      if (!a.priority || PRI[c.priority] > PRI[a.priority]) a.priority = c.priority;
+    }
+  }));
+  const checks = [...agg.values()].map(a => ({
+    label: a.label, cat: a.cat, fix: a.fix,
+    priority: a.priority || a.basePriority,
+    pass: a.fails.length === 0,
+    fails: a.fails, total: a.total,
+    detail: a.fails.length === 0 ? `全部 ${a.total} 頁通過` : `${a.fails.length} / ${a.total} 頁未通過`,
+  }));
+
+  // 網站設定（robots.txt、sitemap、llms.txt…）整站只有一份，用首頁結果
+  home.checks.filter(c => c.scope === 'site').forEach(c => checks.push({ ...c, siteLevel: true }));
+
+  // 跨頁才看得出來的問題
+  function dupCheck(label, field, priority, fix) {
+    const groups = new Map();
+    pages.forEach(p => {
+      const v = (p.meta[field] || '').trim();
+      if (!v) return;
+      if (!groups.has(v)) groups.set(v, []);
+      groups.get(v).push(p.url);
+    });
+    const dups = [...groups.entries()].filter(([, urls]) => urls.length > 1);
+    const fails = dups.flatMap(([v, urls]) => urls.map(u => ({ url: u, detail: `與其他 ${urls.length - 1} 頁相同：「${escHtml(v.slice(0, 60))}」` })));
+    return {
+      label, cat: 'SEO', priority, fix, siteLevel: true,
+      pass: dups.length === 0, fails, total: pages.length,
+      detail: dups.length ? `${dups.length} 組重複，共 ${fails.length} 頁` : `${pages.length} 頁皆不重複`,
+    };
+  }
+  checks.push(dupCheck('Title 不重複', 'title', 'high',
+    '每一頁的 title 都要不同，描述該頁獨有的內容；重複的 title 會讓 Google 不知道該讓哪一頁出現在搜尋結果'));
+  checks.push(dupCheck('Meta Description 不重複', 'desc', 'medium',
+    '每一頁撰寫專屬的 description，摘要該頁內容；重複的描述會被 Google 忽略並自動改寫'));
+  checks.push({
+    label: '頁面可正常讀取（無 404 / 錯誤）', cat: 'SEO', priority: 'high', siteLevel: true,
+    pass: failed.length === 0, total: pages.length + failed.length,
+    fails: failed.map(f => ({ url: f.url, detail: escHtml(f.reason) })),
+    detail: failed.length ? `${failed.length} 頁無法讀取或疑似 404` : '所有掃描到的頁面都能正常讀取',
+    fix: '修正或移除失效連結；已刪除的頁面請 301 導向到相關頁面，並從 sitemap 移除',
+  });
+
+  const avg = arr => arr.length ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length) : 0;
+  return { checks, home, seoScore: avg(pages.map(p => p.seoScore)), geoScore: avg(pages.map(p => p.geoScore)) };
+}
+
+function renderSiteReport(site) {
+  window._lastSite = site;
+  const { pages, failed, startUrl } = site;
+  const { checks, home, seoScore, geoScore } = aggregateSite(site);
+  const origin = new URL(startUrl).origin;
+  const pageIndex = new Map(pages.map((p, i) => [p.url, i]));
+
+  document.getElementById('displayUrl').textContent = `${origin}（全站 · ${pages.length} 頁）`;
+  document.getElementById('scanTime').textContent = '掃描時間：' + new Date().toLocaleDateString('zh-TW');
+  document.getElementById('siteBackBar').style.display = 'none';
+  updateRing(0, seoScore);
+  updateRing(1, geoScore);
+  updateGtmCard(home.gtm);
+
+  // 問題清單：每項加上「幾頁未通過」並可展開頁面清單
+  renderIssueSection(checks, c => {
+    const extra = c.siteLevel && !c.fails
+      ? ' <span class="page-count">全站設定</span>'
+      : c.fails?.length ? ` <span class="page-count bad">${c.fails.length} / ${c.total} 頁</span>` : '';
+    const below = c.fails?.length ? `
+      <details class="fail-pages">
+        <summary>查看未通過的頁面（${c.fails.length}）</summary>
+        <ul>${c.fails.slice(0, 200).map(f => {
+          const i = pageIndex.get(f.url);
+          const link = i !== undefined
+            ? `<a href="#" onclick="showSitePage(${i});return false">${escHtml(pagePath(f.url))}</a>`
+            : `<a href="${escHtml(f.url)}" target="_blank" rel="noopener">${escHtml(pagePath(f.url))}</a>`;
+          return `<li>${link}<span>${f.detail}</span></li>`;
+        }).join('')}</ul>
+      </details>` : '';
+    return renderIssueItem(c, { extra, below });
+  });
+
+  // 各頁評分表（分數低的排前面）
+  const scoreCls = s => s >= 70 ? 'good' : s >= 40 ? 'warn' : 'bad';
+  const rows = pages.map((p, i) => ({ p, i, high: p.checks.filter(c => !c.pass && c.priority === 'high' && c.scope !== 'site').length }))
+    .sort((a, b) => (a.p.seoScore + a.p.geoScore) - (b.p.seoScore + b.p.geoScore))
+    .map(({ p, i, high }) => `<tr>
+      <td><a href="#" onclick="showSitePage(${i});return false" class="so-page">
+        <span class="so-title">${escHtml(p.meta.title || '（無標題）')}</span>
+        <span class="so-path">${escHtml(pagePath(p.url))}</span></a></td>
+      <td class="so-num ${scoreCls(p.seoScore)}">${p.seoScore}</td>
+      <td class="so-num ${scoreCls(p.geoScore)}">${p.geoScore}</td>
+      <td class="so-num ${high ? 'bad' : 'good'}">${high}</td>
+    </tr>`).join('');
+
+  const notes = [];
+  if (site.partial) notes.push('⚠ 已中途取消，只顯示已掃描的頁面');
+  if (site.discovered > pages.length + failed.length) notes.push(`共找到 ${site.discovered} 個網址，已掃描前 ${pages.length + failed.length} 個（可提高「最多頁數」）`);
+  if (failed.length) notes.push(`${failed.length} 頁無法讀取（見問題清單）`);
+
+  const ov = document.getElementById('siteOverview');
+  ov.style.display = 'block';
+  ov.innerHTML = `
+    <div class="so-head">
+      <h3>📄 各頁評分（${pages.length} 頁）</h3>
+      <span class="so-sub">全站分數為各頁平均 · 點頁面看單頁詳細</span>
+    </div>
+    ${notes.length ? `<div class="so-notes">${notes.map(escHtml).join('<br>')}</div>` : ''}
+    <div class="so-table-wrap">
+      <table class="so-table">
+        <thead><tr><th>頁面</th><th>SEO</th><th>GEO</th><th>嚴重問題</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+
+  showResultsArea();
+
+  // 下載報告用：彙整項目 + 各頁分數
+  const stripTags = s => String(s).replace(/<[^>]+>/g, '');
+  window._lastScan = {
+    checks: checks.map(c => ({ ...c, failUrls: (c.fails || []).map(f => `${f.url}${f.detail ? `（${stripTags(f.detail)}）` : ''}`) })),
+    seoScore, geoScore, url: `${origin}（全站 · ${pages.length} 頁）`,
+    date: new Date().toLocaleDateString('zh-TW'),
+    pages: pages.map(p => ({ url: p.url, title: p.meta.title, seoScore: p.seoScore, geoScore: p.geoScore })),
+  };
+  switchTab('issues');
+}
+
+function showSitePage(i) {
+  const site = window._lastSite;
+  if (!site?.pages[i]) return;
+  renderPageResult(site.pages[i], { fromSite: true });
+  document.getElementById('siteBackInfo').textContent = `全站報告中的第 ${i + 1} / ${site.pages.length} 頁`;
+  document.getElementById('resultsArea').scrollIntoView({ behavior: 'smooth' });
+}
+
+function backToSite() {
+  if (window._lastSite) renderSiteReport(window._lastSite);
+  document.getElementById('resultsArea').scrollIntoView({ behavior: 'smooth' });
+}
+
 // ── 網站層級檔案（robots.txt / sitemap / llms.txt）────────
 // 透過 r.jina.ai 抓取；jina 對 404 頁面也會回 200，所以必須驗證內容本身
 async function fetchSiteFiles(pageUrl, outerSignal) {
@@ -1766,12 +2172,8 @@ async function fetchSiteFiles(pageUrl, outerSignal) {
   try { origin = new URL(pageUrl).origin; } catch { return null; }
 
   async function get(fileUrl, fmt) {
-    let signal;
-    try { signal = AbortSignal.any([outerSignal, AbortSignal.timeout(20000)]); }
-    catch { signal = AbortSignal.timeout(20000); }
     try {
-      const r = await fetch(`https://r.jina.ai/${fileUrl}`,
-        { headers: { 'X-Return-Format': fmt, 'X-No-Cache': 'true' }, signal });
+      const r = await jinaFetch(fileUrl, fmt, outerSignal, 20000);
       if (r.status === 404 || r.status === 410) return { state: 'missing' };
       if (!r.ok) return { state: 'unknown' };
       return { state: 'ok', text: await r.text() };
@@ -1802,13 +2204,28 @@ async function fetchSiteFiles(pageUrl, outerSignal) {
   // sitemap：優先使用 robots.txt 宣告的位置
   const sitemapUrl = robots.parsed?.sitemaps[0] || `${origin}/sitemap.xml`;
   const smRes = await get(sitemapUrl, 'html');
-  const sitemap = { state: smRes.state, url: sitemapUrl, count: 0 };
+  const sitemap = { state: smRes.state, url: sitemapUrl, count: 0, urls: [] };
+  // jina 會把 XML 轉成連結清單，原始 XML 則用 <loc>
+  const extractUrls = t => {
+    const locs = [...t.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map(m => m[1]);
+    return locs.length ? locs : [...t.matchAll(/<a\s+href="(https?:\/\/[^"]+)"/gi)].map(m => m[1].replace(/&amp;/g, '&'));
+  };
   if (smRes.state === 'ok') {
     const t = smRes.text;
     const looksLike404 = /<title>[^<]*(404|not found|找不到)/i.test(t);
-    const locs = (t.match(/<loc>/gi) || []).length;
-    const links = (t.match(/<a\s+href="https?:\/\//gi) || []).length;
-    sitemap.count = locs || links;
+    let urls = extractUrls(t);
+    // Sitemap index：清單裡全是子 sitemap，再往下讀（最多 5 個）
+    const children = urls.filter(u => /\.xml(\.gz)?(\?|$)/i.test(u));
+    if (children.length && children.length === urls.length) {
+      urls = [];
+      for (const c of children.slice(0, 5)) {
+        const cr = await get(c, 'html');
+        if (cr.state === 'ok') urls.push(...extractUrls(cr.text));
+      }
+      if (!urls.length) urls = children;
+    }
+    sitemap.urls = urls;
+    sitemap.count = urls.length;
     if (looksLike404 || sitemap.count === 0) sitemap.state = 'missing';
   }
 
@@ -1863,6 +2280,12 @@ function escHtml(s) {
 }
 
 function analyzeAndRender(html, url, siteFiles = null) {
+  window._lastSite = null;
+  renderPageResult(analyzePage(html, url, siteFiles));
+}
+
+// 分析單一頁面，只回傳結果不動畫面（全站掃描會對每一頁呼叫）
+function analyzePage(html, url, siteFiles = null) {
   // 標準化 HTML — 確保 <head> 存在，避免 proxy 回傳不完整結構
   let fullHtml = html;
   if (!/<html/i.test(html)) fullHtml = `<html><head></head><body>${html}</body></html>`;
@@ -2155,7 +2578,7 @@ function analyzeAndRender(html, url, siteFiles = null) {
       fix: '正式上線頁面請移除 noindex / nofollow，改為 &lt;meta name="robots" content="index, follow"&gt;（常見原因：測試站設定直接帶到正式站）'
     },
     {
-      label: 'robots.txt 檔案',
+      label: 'robots.txt 檔案', scope: 'site',
       na: !robotsKnown,
       pass: robotsOk,
       priority: 'medium',
@@ -2181,7 +2604,7 @@ function analyzeAndRender(html, url, siteFiles = null) {
       fix: '檢查 robots.txt 的 Disallow 規則，正式站不可出現「Disallow: /」；需要被搜尋的頁面不可被封鎖'
     },
     {
-      label: 'XML Sitemap',
+      label: 'XML Sitemap', scope: 'site',
       na: !sitemapKnown,
       pass: sitemapOk,
       priority: 'medium',
@@ -2192,7 +2615,7 @@ function analyzeAndRender(html, url, siteFiles = null) {
       fix: '建立 /sitemap.xml 列出所有可索引頁面（含 lastmod），並提交到 Google Search Console'
     },
     {
-      label: 'robots.txt 宣告 Sitemap',
+      label: 'robots.txt 宣告 Sitemap', scope: 'site',
       na: !robotsOk,
       pass: robotsHasSitemap,
       priority: 'low',
@@ -2339,7 +2762,7 @@ function analyzeAndRender(html, url, siteFiles = null) {
       fix: '在 Organization Schema 的 sameAs 欄位加入 ≥3 個已驗證社群帳號（LinkedIn、Facebook、Instagram、YouTube 等）'
     },
     {
-      label: 'llms.txt（AI 爬蟲說明）',
+      label: 'llms.txt（AI 爬蟲說明）', scope: 'site',
       pass: hasLlms,
       priority: 'high',
       cat: 'GEO',
@@ -2365,7 +2788,7 @@ function analyzeAndRender(html, url, siteFiles = null) {
       fix: '加入 BreadcrumbList JSON-LD，幫助 AI 理解頁面在網站中的層級位置'
     },
     {
-      label: 'AI Bot 明確設定',
+      label: 'AI Bot 明確設定', scope: 'site',
       pass: hasAiBots,
       priority: 'medium',
       cat: 'GEO',
@@ -2375,7 +2798,7 @@ function analyzeAndRender(html, url, siteFiles = null) {
       fix: '在 robots.txt 明確列出 AI bot 規則（GPTBot、ClaudeBot、PerplexityBot、Google-Extended），區分允許索引 vs. 禁止訓練'
     },
     {
-      label: 'AI 搜尋爬蟲未被封鎖',
+      label: 'AI 搜尋爬蟲未被封鎖', scope: 'site',
       na: !robotsKnown,
       pass: aiSearchBlocked.length === 0,
       priority: 'high',
@@ -2402,103 +2825,118 @@ function analyzeAndRender(html, url, siteFiles = null) {
       fix: '若頁面包含文章或部落格內容，加入 Article Schema 並填入 headline、author、datePublished'
     },
   ].filter(c => !c.na);
+  // 頁面上的站內連結（全站掃描用來找下一批頁面）
+  const internalUrls = [...new Set([...links].map(a => normalizePageUrl(a.getAttribute('href'), url)).filter(Boolean))];
 
-  const highIssues   = checks.filter(c => !c.pass && c.priority === 'high').length;
-  const medIssues    = checks.filter(c => !c.pass && c.priority === 'medium').length;
-  const passCount    = checks.filter(c => c.pass).length;
+  return {
+    url, checks, seoScore, geoScore, internalUrls,
+    gtm: { hasGtm, gtmId, hasGtmScript, hasGtmNoscript, hasDataLayer, gtmComplete },
+    meta: { title, desc, h1: h1s[0]?.textContent?.trim() || '', canonical },
+  };
+}
 
-  // ── 更新 UI ──────────────────────────────────────────
-  document.getElementById('displayUrl').textContent = url;
-  document.getElementById('scanTime').textContent = '掃描時間：' + new Date().toLocaleDateString('zh-TW');
-
-  // Quick stats
-  const qs = document.querySelectorAll('.stat-card .stat-num');
-  if (qs[0]) qs[0].textContent = highIssues;
-  if (qs[1]) qs[1].textContent = medIssues;
-  if (qs[2]) qs[2].textContent = passCount;
-  if (qs[3]) qs[3].textContent = checks.length;
-
-  // Score rings helper
-  function updateRing(idx, score) {
-    const circumference = 238.76;
-    const rings = document.querySelectorAll('.score-ring circle:last-child');
-    if (!rings[idx]) return;
-    rings[idx].style.strokeDashoffset = circumference * (1 - score / 100);
-    const color = score >= 70 ? 'var(--good)' : score >= 40 ? 'var(--warn)' : 'var(--bad)';
-    rings[idx].style.stroke = color;
-    const numEl = rings[idx].closest('.score-ring').querySelector('.num');
-    if (numEl) { numEl.textContent = score; numEl.style.color = color; }
-    const badge = rings[idx].closest('.score-card')?.querySelector('.grade-badge');
-    if (badge) {
-      const grade = score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : score >= 25 ? 'D' : 'F';
-      const labels = { A:'優秀', B:'良好', C:'待改善', D:'急需改善', F:'幾乎不可見' };
-      badge.textContent = `${grade} 級 — ${labels[grade]}`;
-      badge.style.background = color === 'var(--good)' ? 'rgba(0,201,167,0.15)' : color === 'var(--warn)' ? 'rgba(255,217,61,0.15)' : 'rgba(255,107,107,0.15)';
-      badge.style.color = color;
-    }
+// ── 畫面共用元件 ──────────────────────────────────────
+function updateRing(idx, score) {
+  const circumference = 238.76;
+  const rings = document.querySelectorAll('.score-ring circle:last-child');
+  if (!rings[idx]) return;
+  rings[idx].style.strokeDashoffset = circumference * (1 - score / 100);
+  const color = score >= 70 ? 'var(--good)' : score >= 40 ? 'var(--warn)' : 'var(--bad)';
+  rings[idx].style.stroke = color;
+  const numEl = rings[idx].closest('.score-ring').querySelector('.num');
+  if (numEl) { numEl.textContent = score; numEl.style.color = color; }
+  const badge = rings[idx].closest('.score-card')?.querySelector('.grade-badge');
+  if (badge) {
+    const grade = score >= 80 ? 'A' : score >= 60 ? 'B' : score >= 40 ? 'C' : score >= 25 ? 'D' : 'F';
+    const labels = { A:'優秀', B:'良好', C:'待改善', D:'急需改善', F:'幾乎不可見' };
+    badge.textContent = `${grade} 級 — ${labels[grade]}`;
+    badge.style.background = color === 'var(--good)' ? 'rgba(0,201,167,0.15)' : color === 'var(--warn)' ? 'rgba(255,217,61,0.15)' : 'rgba(255,107,107,0.15)';
+    badge.style.color = color;
   }
-  updateRing(0, seoScore);
-  updateRing(1, geoScore);
+}
 
-  // ── 動態產生問題清單 ──────────────────────────────────
-  function renderIssueItem(c) {
-    const priLabel = { high:'HIGH', medium:'MED', low:'LOW' }[c.priority];
-    const priClass = c.priority;
-    const statusClass = c.pass ? 'good' : (c.priority === 'high' ? 'bad' : 'warn');
-    const statusIcon  = c.pass ? '✓' : (c.priority === 'high' ? '✕' : '!');
-    const catTag = `<span class="tag" style="color:${c.cat==='GEO'?'var(--accent)':'var(--accent2)'}">${c.cat}</span>`;
-    const fixBlock = c.pass ? '' : `<div class="issue-fix">${c.fix}</div>`;
-    return `<div class="issue-item ${statusClass}">
-      <div class="issue-status ${statusClass}">${statusIcon}</div>
-      <div class="issue-content">
-        <div class="issue-title">${catTag} ${c.label}</div>
-        <div class="issue-desc">${c.detail}</div>
-        ${fixBlock}
-      </div>
-      <span class="priority-tag ${c.pass ? '' : priClass}" style="${c.pass ? 'background:rgba(0,201,167,0.1);color:var(--good)' : ''}">${c.pass ? 'PASS' : priLabel}</span>
-    </div>`;
-  }
+// extra：標題後面的附加標籤（全站模式顯示頁數）；below：說明下方的附加內容
+function renderIssueItem(c, { extra = '', below = '' } = {}) {
+  const priLabel = { high:'HIGH', medium:'MED', low:'LOW' }[c.priority];
+  const priClass = c.priority;
+  const statusClass = c.pass ? 'good' : (c.priority === 'high' ? 'bad' : 'warn');
+  const statusIcon  = c.pass ? '✓' : (c.priority === 'high' ? '✕' : '!');
+  const catTag = `<span class="tag" style="color:${c.cat==='GEO'?'var(--accent)':'var(--accent2)'}">${c.cat}</span>`;
+  const fixBlock = c.pass ? '' : `<div class="issue-fix">${c.fix}</div>`;
+  return `<div class="issue-item ${statusClass}">
+    <div class="issue-status ${statusClass}">${statusIcon}</div>
+    <div class="issue-content">
+      <div class="issue-title">${catTag} ${c.label}${extra}</div>
+      <div class="issue-desc">${c.detail}</div>
+      ${below}
+      ${fixBlock}
+    </div>
+    <span class="priority-tag ${c.pass ? '' : priClass}" style="${c.pass ? 'background:rgba(0,201,167,0.1);color:var(--good)' : ''}">${c.pass ? 'PASS' : priLabel}</span>
+  </div>`;
+}
 
+// 問題清單：嚴重 → 警告 → 通過；renderItem 可替換成全站版
+function renderIssueSection(checks, renderItem = c => renderIssueItem(c)) {
   const seoChecks = checks.filter(c => c.cat === 'SEO');
   const geoChecks = checks.filter(c => c.cat === 'GEO');
-  const seoHigh = seoChecks.filter(c => !c.pass && c.priority === 'high').length;
-  const seoWarn = seoChecks.filter(c => !c.pass && c.priority !== 'high').length;
-  const geoHigh = geoChecks.filter(c => !c.pass && c.priority === 'high').length;
-  const geoWarn = geoChecks.filter(c => !c.pass && c.priority !== 'high').length;
+  const count = (list, f) => list.filter(f).length;
+  const isHigh = c => !c.pass && c.priority === 'high';
+  const isWarn = c => !c.pass && c.priority !== 'high';
 
-  // 找到 issues tab 的 section body 並重繪
   const issueSection = document.querySelector('#tab-issues .section-body');
   if (issueSection) {
     issueSection.innerHTML = `
       <div style="margin-bottom:10px;font-size:0.83rem;color:var(--text2)">
-        SEO：<span style="color:var(--bad)">● ${seoHigh} 嚴重</span>
-        <span style="color:var(--warn);margin-left:8px">● ${seoWarn} 警告</span>
-        <span style="color:var(--good);margin-left:8px">● ${seoChecks.filter(c=>c.pass).length} 通過</span>
+        SEO：<span style="color:var(--bad)">● ${count(seoChecks,isHigh)} 嚴重</span>
+        <span style="color:var(--warn);margin-left:8px">● ${count(seoChecks,isWarn)} 警告</span>
+        <span style="color:var(--good);margin-left:8px">● ${count(seoChecks,c=>c.pass)} 通過</span>
         &nbsp;｜&nbsp;
-        GEO：<span style="color:var(--bad)">● ${geoHigh} 嚴重</span>
-        <span style="color:var(--warn);margin-left:8px">● ${geoWarn} 警告</span>
-        <span style="color:var(--good);margin-left:8px">● ${geoChecks.filter(c=>c.pass).length} 通過</span>
+        GEO：<span style="color:var(--bad)">● ${count(geoChecks,isHigh)} 嚴重</span>
+        <span style="color:var(--warn);margin-left:8px">● ${count(geoChecks,isWarn)} 警告</span>
+        <span style="color:var(--good);margin-left:8px">● ${count(geoChecks,c=>c.pass)} 通過</span>
       </div>
       <div class="issue-list">
-        ${[...seoChecks.filter(c=>!c.pass && c.priority==='high'),
-           ...geoChecks.filter(c=>!c.pass && c.priority==='high'),
-           ...seoChecks.filter(c=>!c.pass && c.priority!=='high'),
-           ...geoChecks.filter(c=>!c.pass && c.priority!=='high'),
+        ${[...seoChecks.filter(isHigh), ...geoChecks.filter(isHigh),
+           ...seoChecks.filter(isWarn), ...geoChecks.filter(isWarn),
            ...checks.filter(c=>c.pass)
-          ].map(renderIssueItem).join('')}
+          ].map(renderItem).join('')}
       </div>`;
   }
 
-  // 更新 section header 的計數
+  const highIssues = count(checks, isHigh);
+  const medIssues  = count(checks, c => !c.pass && c.priority === 'medium');
   const issueHeader = document.querySelector('#tab-issues .section-header .section-meta');
   if (issueHeader) {
     issueHeader.innerHTML = `<span style="color:var(--bad)">● ${highIssues} 個嚴重</span><span style="color:var(--warn)">● ${medIssues} 個警告</span><span class="chevron">▼</span>`;
   }
 
+  const qs = document.querySelectorAll('.stat-card .stat-num');
+  if (qs[0]) qs[0].textContent = highIssues;
+  if (qs[1]) qs[1].textContent = medIssues;
+  if (qs[2]) qs[2].textContent = count(checks, c => c.pass);
+  if (qs[3]) qs[3].textContent = checks.length;
+}
+
+function showResultsArea() {
   document.getElementById('introArea').style.display = 'none';
   document.getElementById('resultsArea').classList.add('visible');
   document.getElementById('downloadBar').style.display = 'flex';
-  updateGtmCard({ hasGtm, gtmId, hasGtmScript, hasGtmNoscript, hasDataLayer, gtmComplete });
+}
+
+// 把單頁分析結果畫到畫面上（fromSite：從全站報告點進來看單頁）
+function renderPageResult(r, { fromSite = false } = {}) {
+  const { url, checks, seoScore, geoScore } = r;
+
+  document.getElementById('displayUrl').textContent = url;
+  document.getElementById('scanTime').textContent = '掃描時間：' + new Date().toLocaleDateString('zh-TW');
+  document.getElementById('siteOverview').style.display = 'none';
+  document.getElementById('siteBackBar').style.display = fromSite ? 'flex' : 'none';
+
+  updateRing(0, seoScore);
+  updateRing(1, geoScore);
+  renderIssueSection(checks);
+  showResultsArea();
+  updateGtmCard(r.gtm);
 
   // 儲存最新掃描結果供下載使用
   window._lastScan = { checks, seoScore, geoScore, url,
@@ -2552,7 +2990,7 @@ function statusIcon(c) { return c.pass ? '✅' : c.priority === 'high' ? '❌' :
 function priorityLabel(c) { return c.pass ? 'PASS' : c.priority === 'high' ? '🔴 HIGH' : c.priority === 'medium' ? '🟡 MED' : '🔵 LOW'; }
 
 // ── Markdown 報告 ──────────────────────────────────────
-function buildMarkdown({ checks, seoScore, geoScore, url, date }) {
+function buildMarkdown({ checks, seoScore, geoScore, url, date, pages }) {
   const seo = checks.filter(c => c.cat === 'SEO');
   const geo = checks.filter(c => c.cat === 'GEO');
   const highFails = checks.filter(c => !c.pass && c.priority === 'high');
@@ -2577,6 +3015,18 @@ function buildMarkdown({ checks, seoScore, geoScore, url, date }) {
   lines.push(`| 通過項目 | ${passes.length} 項 |`);
   lines.push(`| 分析總項目 | ${checks.length} 項 |`);
   lines.push(``);
+
+  // ── 全站掃描：各頁分數 ──
+  if (pages?.length) {
+    lines.push(`---`);
+    lines.push(`## 各頁評分（${pages.length} 頁，全站分數為平均）`);
+    lines.push(``);
+    lines.push(`| 頁面 | 網址 | SEO | GEO |`);
+    lines.push(`|------|------|-----|-----|`);
+    [...pages].sort((a, b) => (a.seoScore + a.geoScore) - (b.seoScore + b.geoScore))
+      .forEach(p => lines.push(`| ${(p.title || '（無標題）').replace(/\|/g, '｜')} | ${p.url} | ${p.seoScore} | ${p.geoScore} |`));
+    lines.push(``);
+  }
 
   // ── 執行摘要 ──
   lines.push(`---`);
@@ -2615,6 +3065,12 @@ function buildMarkdown({ checks, seoScore, geoScore, url, date }) {
     lines.push(``);
     lines.push(`**修復建議：** ${stripHtml(c.fix)}`);
     lines.push(``);
+    if (c.failUrls?.length) {
+      lines.push(`**未通過頁面：**`);
+      c.failUrls.slice(0, 50).forEach(u => lines.push(`- ${u}`));
+      if (c.failUrls.length > 50) lines.push(`- …另有 ${c.failUrls.length - 50} 頁`);
+      lines.push(``);
+    }
   });
 
   // ── SEO 完整分析 ──
@@ -2734,7 +3190,7 @@ function buildMarkdown({ checks, seoScore, geoScore, url, date }) {
 }
 
 // ── Word (.doc HTML 格式) ──────────────────────────────
-function buildWord({ checks, seoScore, geoScore, url, date }) {
+function buildWord({ checks, seoScore, geoScore, url, date, pages }) {
   const seo = checks.filter(c => c.cat === 'SEO');
   const geo = checks.filter(c => c.cat === 'GEO');
   const highFails = checks.filter(c => !c.pass && c.priority === 'high');
@@ -2761,6 +3217,7 @@ function buildWord({ checks, seoScore, geoScore, url, date }) {
         </p>
         <p style="margin:6px 0 4px;font-size:10.5pt;color:#333"><b>偵測結果：</b>${stripHtml(c.detail)}</p>
         ${!c.pass ? `<p style="margin:6px 0 0;font-size:10.5pt;background:#fff;padding:8px 12px;border-radius:4px;border:1px solid ${bd}30"><b>修復建議：</b> ${stripHtml(c.fix)}</p>` : ''}
+        ${c.failUrls?.length ? `<p style="margin:6px 0 0;font-size:9pt;color:#555"><b>未通過頁面：</b><br>${c.failUrls.slice(0, 50).map(escHtml).join('<br>')}${c.failUrls.length > 50 ? `<br>…另有 ${c.failUrls.length - 50} 頁` : ''}</p>` : ''}
       </td></tr>
     </table>`;
   }
@@ -2818,6 +3275,16 @@ function buildWord({ checks, seoScore, geoScore, url, date }) {
     </td>
   </tr>
 </table>
+
+${pages?.length ? `
+<h2>各頁評分（${pages.length} 頁，全站分數為平均）</h2>
+<table width="100%" cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-size:9.5pt">
+  <tr style="background:#f0f0ff"><th align="left">頁面</th><th align="left">網址</th><th>SEO</th><th>GEO</th></tr>
+  ${[...pages].sort((a, b) => (a.seoScore + a.geoScore) - (b.seoScore + b.geoScore)).map(p => `
+  <tr style="border-top:1px solid #ddd"><td>${escHtml(p.title || '（無標題）')}</td><td style="color:#666">${escHtml(p.url)}</td>
+    <td align="center" style="color:${scoreColor(p.seoScore)};font-weight:bold">${p.seoScore}</td>
+    <td align="center" style="color:${scoreColor(p.geoScore)};font-weight:bold">${p.geoScore}</td></tr>`).join('')}
+</table>` : ''}
 
 <h2>執行摘要</h2>
 <p><b>SEO：</b>${seoScore < 40 ? `基礎設施嚴重缺失，搜尋引擎難以正確解讀。最關鍵問題：${seo.filter(c=>!c.pass&&c.priority==='high').map(c=>stripHtml(c.label)).join('、')||'（無）'}。` : seoScore < 70 ? '有基本架構，但仍有多項技術問題待改善，影響搜尋排名潛力。' : 'SEO 技術基礎良好，建議持續優化內容品質。'}</p>
